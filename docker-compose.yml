@@ -1,0 +1,142 @@
+version: '3.8'
+
+services:
+  # ==========================================
+  # 基礎設施層 (Infrastructure)
+  # ==========================================
+  
+  # 1. 共用資料庫 (取代 AWS RDS)
+  postgres:
+    image: postgres:15-alpine
+    container_name: speech_postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: speech_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d speech_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. 訊息佇列 (取代 Amazon MQ)
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: speech_rabbitmq
+    ports:
+      - "5672:5672"   # 應用程式連線 Port
+      - "15672:15672" # Management UI 網頁介面 Port
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 3. 快取與 Pub/Sub (取代 Amazon ElastiCache)
+  redis:
+    image: redis:7-alpine
+    container_name: speech_redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # 4. S3 模擬環境 (取代 Amazon S3)
+  minio:
+    image: minio/minio
+    container_name: speech_minio
+    ports:
+      - "9000:9000"   # API Port
+      - "9001:9001"   # Console UI Port
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    command: server /data --console-address ":9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ==========================================
+  # 應用程式層 (Microservices)
+  # 注意：初期開發時，建議先在主機用 go run 啟動，
+  # 方便使用中斷點 debug 與熱重載。
+  # 當服務寫完需要整合測試時，再將下列服務解開註解。
+  # ==========================================
+
+  # api-server:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/api-server/Dockerfile
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   environment:
+  #     - DB_HOST=postgres
+  #     - REDIS_HOST=redis:6379
+  #     - MINIO_ENDPOINT=minio:9000
+
+  # stt-worker:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/stt-worker/Dockerfile
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   environment:
+  #     - DB_HOST=postgres
+  #     - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+  # llm-worker:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/llm-worker/Dockerfile
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     rabbitmq:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #   environment:
+  #     - DB_HOST=postgres
+  #     - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+  #     - REDIS_HOST=redis:6379
+  #     - OPENAI_API_KEY=${OPENAI_API_KEY}
+
+  # outbox-relay:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/outbox-relay/Dockerfile
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     rabbitmq:
+  #       condition: service_healthy
+  #   environment:
+  #     - DB_HOST=postgres
+  #     - RABBITMQ_URL=amqp://guest:guest@rabbitmq:5672/
+
+volumes:
+  pgdata:
+  miniodata:

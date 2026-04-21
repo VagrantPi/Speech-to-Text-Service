@@ -1,0 +1,13 @@
+go 1.26.2
+
+use (
+	./apps/api-server
+	./apps/db-migration
+	./apps/llm-worker
+	./apps/outbox-relay
+	./apps/stt-worker
+	./packages/config
+	./packages/db
+	./packages/mq
+	./packages/stt
+)
