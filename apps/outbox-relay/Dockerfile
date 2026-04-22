@@ -18,6 +18,5 @@ RUN apk --no-cache add ca-certificates tzdata
 WORKDIR /root/
 
 COPY --from=builder /app/main .
-COPY --from=builder /app/apps/outbox-relay/.env ./.env
 
 CMD ["./main"]
