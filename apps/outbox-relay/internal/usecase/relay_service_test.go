@@ -38,6 +38,16 @@ func (m *MockRepoOutboxEvent) Delete(ctx context.Context, id uint) error {
 	return args.Error(0)
 }
 
+func (m *MockRepoOutboxEvent) MarkAsProcessed(ctx context.Context, id uint) error {
+	args := m.Called(ctx, id)
+	return args.Error(0)
+}
+
+func (m *MockRepoOutboxEvent) MarkAsFailed(ctx context.Context, id uint, errReason string) error {
+	args := m.Called(ctx, id, errReason)
+	return args.Error(0)
+}
+
 func TestProcessBatch(t *testing.T) {
 	ctx := context.Background()
 
@@ -66,7 +76,7 @@ func TestProcessBatch(t *testing.T) {
 			},
 			setupRepo: func(m *MockRepoOutboxEvent, events []*models.OutboxEvent) {
 				for _, e := range events {
-					m.On("Delete", ctx, e.ID).Return(nil)
+					m.On("MarkAsProcessed", ctx, e.ID).Return(nil)
 				}
 			},
 			expectedCount: 3,
@@ -82,7 +92,7 @@ func TestProcessBatch(t *testing.T) {
 			expectedErr:    nil,
 		},
 		{
-			name:      "publish failure - should not delete event",
+			name:      "publish failure - should not mark as processed",
 			batchSize: 10,
 			pendingEvents: []*models.OutboxEvent{
 				{ID: 1, Topic: "task.created", Payload: datatypes.JSON(`{"id":1}`)},
@@ -95,14 +105,14 @@ func TestProcessBatch(t *testing.T) {
 				m.On("Publish", ctx, events[2].Topic, []byte(events[2].Payload)).Return(nil)
 			},
 			setupRepo: func(m *MockRepoOutboxEvent, events []*models.OutboxEvent) {
-				m.On("Delete", ctx, events[0].ID).Return(nil)
-				m.On("Delete", ctx, events[2].ID).Return(nil)
+				m.On("MarkAsProcessed", ctx, events[0].ID).Return(nil)
+				m.On("MarkAsProcessed", ctx, events[2].ID).Return(nil)
 			},
 			expectedCount: 2,
 			expectedErr:   nil,
 		},
 		{
-			name:      "all publish failures",
+			name:      "all publish failures - skipped but not marked as failed",
 			batchSize: 10,
 			pendingEvents: []*models.OutboxEvent{
 				{ID: 1, Topic: "task.created", Payload: datatypes.JSON(`{"id":1}`)},

@@ -26,7 +26,9 @@ type OutboxEvent struct {
 	Payload datatypes.JSON `gorm:"type:jsonb;not null"`
 
 	// 部分索引 (Partial Index)：只針對 PENDING 狀態建 B-Tree，讓 Relay 輪詢效能極大化
-	Status string `gorm:"type:varchar(20);default:'PENDING';index:idx_outbox_pending,where:status='PENDING'"`
+	Status      string `gorm:"type:varchar(20);default:'PENDING';index:idx_outbox_pending,where:status='PENDING'"`
+	RetryCount  int    // 記錄重試次數
+	ErrorReason string `gorm:"type:text"`
 
 	CreatedAt time.Time `gorm:"autoCreateTime"`
 }

@@ -10,6 +10,7 @@ import (
 	"github.com/google/uuid"
 
 	"speech.local/apps/api-server/internal/repository"
+	"speech.local/packages/db/models"
 )
 
 const (
@@ -21,6 +22,10 @@ type TaskUseCase interface {
 	GetAudioUploadURL(ctx context.Context, fileExtension, contentType string) (uploadURL string, s3Key string, err error)
 	// ConfirmTask 確認音訊已上傳，並建立轉譯任務
 	ConfirmTask(ctx context.Context, s3Key string) (taskID uint, err error)
+	// GetTaskDetail 取得任務詳情
+	GetTaskDetail(ctx context.Context, id uint) (*models.Task, error)
+	// StreamTaskSummary 訂閱任務摘要的串流
+	StreamTaskSummary(ctx context.Context, taskID uint) (<-chan string, func() error, error)
 }
 
 var (
@@ -33,12 +38,14 @@ var supportedExtensions = []string{".mp3", ".mp4", ".mpeg", ".mpga", ".m4a", ".w
 type taskUseCase struct {
 	storageRepo repository.StorageRepo
 	taskRepo    repository.TaskRepo
+	pubSubRepo  repository.PubSubRepo
 }
 
-func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo) TaskUseCase {
+func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo, pubSubRepo repository.PubSubRepo) TaskUseCase {
 	return &taskUseCase{
 		storageRepo: storageRepo,
 		taskRepo:    taskRepo,
+		pubSubRepo:  pubSubRepo,
 	}
 }
 
@@ -69,4 +76,13 @@ func (u *taskUseCase) ConfirmTask(ctx context.Context, s3Key string) (uint, erro
 		return 0, ErrInvalidS3Key
 	}
 	return u.taskRepo.CreateTaskWithOutbox(ctx, s3Key)
+}
+
+func (u *taskUseCase) GetTaskDetail(ctx context.Context, id uint) (*models.Task, error) {
+	return u.taskRepo.GetByID(ctx, id)
+}
+
+func (u *taskUseCase) StreamTaskSummary(ctx context.Context, taskID uint) (<-chan string, func() error, error) {
+	channel := fmt.Sprintf("task:%d:stream", taskID)
+	return u.pubSubRepo.Subscribe(ctx, channel)
 }

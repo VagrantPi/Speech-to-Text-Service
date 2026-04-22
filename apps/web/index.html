@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI 語音摘要系統 - 整合測試面板</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-gray-50 min-h-screen p-8">
+  <div class="max-w-3xl mx-auto space-y-8">
+    <header class="text-center">
+      <h1 class="text-3xl font-bold text-gray-800">🎙️ AI 語音摘要整合測試</h1>
+      <p class="text-gray-500 mt-2">End-to-End 架構驗證面板</p>
+    </header>
+
+    <section class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+      <h2 class="text-lg font-semibold mb-4 flex items-center">
+        <span class="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center mr-2">1</span>
+        上傳音訊 (S3 直傳模式)
+      </h2>
+      <div class="space-y-4">
+        <input type="file" id="audioFile" accept="audio/*"
+          class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100" />
+        <button onclick="handleUpload()" id="uploadBtn"
+          class="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition disabled:bg-gray-400">
+          開始上傳並啟動任務
+        </button>
+        <div id="uploadStatus" class="text-sm text-gray-500 italic"></div>
+      </div>
+    </section>
+
+    <section class="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
+      <h2 class="text-lg font-semibold mb-4 flex items-center">
+        <span class="bg-green-100 text-green-600 w-8 h-8 rounded-full flex items-center justify-center mr-2">2</span>
+        任務處理狀態
+      </h2>
+      <div class="grid grid-cols-2 gap-4 mb-6">
+        <div class="p-4 bg-gray-50 rounded-lg">
+          <p class="text-xs text-gray-400 uppercase font-bold">Task ID</p>
+          <p id="displayTaskId" class="text-xl font-mono text-gray-700">-</p>
+        </div>
+        <div class="p-4 bg-gray-50 rounded-lg">
+          <p class="text-xs text-gray-400 uppercase font-bold">Status</p>
+          <p id="displayStatus" class="text-xl font-semibold text-orange-500">Idle</p>
+        </div>
+      </div>
+
+      <div class="space-y-6">
+        <div>
+          <h3 class="text-sm font-bold text-gray-600 mb-2">逐字稿 (Transcript)</h3>
+          <div id="transcriptBox"
+            class="p-4 bg-gray-900 text-green-400 font-mono rounded-lg min-h-[100px] whitespace-pre-wrap text-sm leading-relaxed">
+            等待 STT Worker 處理...</div>
+        </div>
+        <div>
+          <h3 class="text-sm font-bold text-gray-600 mb-2">AI 即時摘要 (LLM Streaming)</h3>
+          <div id="summaryBox"
+            class="p-4 bg-blue-900 text-white font-sans rounded-lg min-h-[150px] whitespace-pre-wrap leading-relaxed shadow-inner">
+            等待 LLM Worker 串流...</div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const CONFIG = {
+      API_BASE: 'http://localhost:8080/api' // 指向你的 api-server
+    };
+
+    let currentTaskId = null;
+    let eventSource = null;
+
+    async function handleUpload() {
+      const fileInput = document.getElementById('audioFile');
+      const file = fileInput.files[0];
+      if (!file) return alert('請先選擇音訊檔案');
+
+      const uploadBtn = document.getElementById('uploadBtn');
+      const statusDiv = document.getElementById('uploadStatus');
+
+      try {
+        uploadBtn.disabled = true;
+
+        // 1. 取得 Pre-signed URL
+        statusDiv.innerText = "正在取得上傳通行證...";
+        const urlResp = await fetch(`${CONFIG.API_BASE}/upload-url?filename=${encodeURIComponent(file.name)}&content_type=${encodeURIComponent(file.type)}`);
+        const { upload_url, s3_key } = await urlResp.json();
+
+        // 2. 直傳 S3 (MinIO)
+        statusDiv.innerText = "音訊直傳 S3 中 (Bypassing Server)...";
+        await fetch(upload_url, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type }
+        });
+
+        // 3. 建立後端任務
+        statusDiv.innerText = "正在建立後端任務...";
+        const taskResp = await fetch(`${CONFIG.API_BASE}/tasks/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ s3_key: s3_key })
+        });
+        const task = await taskResp.json();
+
+        currentTaskId = task.id;
+        document.getElementById('displayTaskId').innerText = currentTaskId;
+        document.getElementById('displayStatus').innerText = "Processing";
+        statusDiv.innerText = "任務已啟動！等待 Worker 處理...";
+
+        // 4. 開始啟動 SSE 監聽
+        startStreaming(currentTaskId);
+
+        // 5. 啟動 Polling 檢查任務狀態 (為了拿逐字稿)
+        pollTaskStatus(currentTaskId);
+
+      } catch (err) {
+        console.error(err);
+        statusDiv.innerText = "發生錯誤: " + err.message;
+        uploadBtn.disabled = false;
+      }
+    }
+
+    function startStreaming(taskId) {
+      if (eventSource) eventSource.close();
+      const summaryBox = document.getElementById('summaryBox');
+      summaryBox.innerText = ""; // 清空
+
+      eventSource = new EventSource(`${CONFIG.API_BASE}/tasks/${taskId}/stream`);
+
+      eventSource.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+
+        if (data.token === "[DONE]") {
+          eventSource.close();
+          document.getElementById('displayStatus').innerText = "Completed";
+          return;
+        }
+
+        // 逐字跳出摘要
+        summaryBox.innerText += data.token;
+      };
+
+      eventSource.onerror = (err) => {
+        console.error("SSE Error:", err);
+        eventSource.close();
+      };
+    }
+
+    async function pollTaskStatus(taskId) {
+      const timer = setInterval(async () => {
+        try {
+          const resp = await fetch(`${CONFIG.API_BASE}/tasks/${taskId}`);
+          const task = await resp.json();
+
+          if (task.transcript) {
+            document.getElementById('transcriptBox').innerText = task.transcript;
+          }
+
+          if (task.status === "COMPLETED") {
+            document.getElementById('displayStatus').innerText = "Completed";
+            clearInterval(timer);
+          }
+        } catch (e) {
+          console.error("Polling Error", e);
+        }
+      }, 3000);
+    }
+  </script>
+</body>
+
+</html>

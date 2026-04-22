@@ -2,12 +2,13 @@ package worker
 
 import (
 	"context"
+	"log"
 	"time"
 
 	"speech.local/apps/outbox-relay/internal/usecase"
 )
 
-const batchSize = 100
+const batchSize = 50
 
 type RelayWorker struct {
 	relayService usecase.RelayService
@@ -20,26 +21,18 @@ func NewRelayWorker(relayService usecase.RelayService) *RelayWorker {
 }
 
 func (w *RelayWorker) Start(ctx context.Context) {
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+
+	log.Println("relay worker started, polling every 500ms")
+
 	for {
 		select {
 		case <-ctx.Done():
+			log.Println("relay worker shutting down...")
 			return
-		default:
-			w.processBatch(ctx)
+		case <-ticker.C:
+			_ = w.relayService.PollAndRelay(ctx)
 		}
 	}
-}
-
-func (w *RelayWorker) processBatch(ctx context.Context) {
-	processedCount, err := w.relayService.ProcessBatch(ctx, batchSize)
-	if err != nil {
-		time.Sleep(1 * time.Second)
-		return
-	}
-
-	if processedCount > 0 {
-		return
-	}
-
-	time.Sleep(1 * time.Second)
 }

@@ -4,7 +4,11 @@
 package di
 
 import (
+	"context"
+
 	"github.com/google/wire"
+	"github.com/uptrace/opentelemetry-go-extra/otelgorm"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 
 	"speech.local/apps/api-server/internal/handler"
@@ -13,7 +17,9 @@ import (
 
 	"speech.local/packages/config"
 	"speech.local/packages/db"
+	"speech.local/packages/redis"
 	"speech.local/packages/storage"
+	"speech.local/packages/telemetry"
 )
 
 var ProviderSet = wire.NewSet(
@@ -25,23 +31,41 @@ var ProviderSet = wire.NewSet(
 	NewS3Storage,
 	wire.Bind(new(repository.StorageRepo), new(*storage.S3Storage)),
 
-	// 3. DB Repository 注入
+	// 3. Redis 與 PubSub 注入
+	ProvideRedisClient,
+	repository.NewPubSubRepo,
+
+	// 4. DB Repository 注入
 	// 因為 repository.NewTaskRepo 已經設計成吃 *gorm.DB 並直接回傳 TaskRepo 介面
 	// 所以不需要 wire.Bind，直接放進來即可
 	repository.NewTaskRepo,
 
-	// 4. Usecase & Handler 注入
+	// 5. Usecase & Handler 注入
 	NewTaskUseCase,
+	NewLogger,
 	NewTaskHandler,
 )
 
+// NewAppConfig 載入環境變數
 func NewAppConfig() (*config.AppConfig, error) {
 	return config.NewAppConfig()
 }
 
+// ProvideTelemetryConfig 提取 TelemetryConfig
+func ProvideTelemetryConfig(cfg *config.AppConfig) telemetry.Config {
+	return cfg.TelemetryConfig
+}
+
 // ProvideDB 負責從 Config 提取 DBConfig 並建立 *gorm.DB 連線
 func ProvideDB(cfg *config.AppConfig) (*gorm.DB, error) {
-	return db.NewPostgresConn(cfg.DBConfig)
+	gdb, err := db.NewPostgresConn(cfg.DBConfig)
+	if err != nil {
+		return nil, err
+	}
+	if err := gdb.Use(otelgorm.NewPlugin()); err != nil {
+		return nil, err
+	}
+	return gdb, nil
 }
 
 // NewS3Storage 負責從 Config 提取 S3Config 並建立 S3 Client
@@ -49,16 +73,30 @@ func NewS3Storage(cfg *config.AppConfig) (*storage.S3Storage, error) {
 	return storage.NewS3Storage(cfg.S3Config)
 }
 
-func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo) usecase.TaskUseCase {
-	return usecase.NewTaskUseCase(storageRepo, taskRepo)
+// ProvideRedisClient 負責從 Config 提取 RedisConfig 並建立 Redis Client
+func ProvideRedisClient(cfg *config.AppConfig) (*redis.RedisClient, error) {
+	return redis.NewRedisClient(cfg.RedisConfig)
 }
 
-func NewTaskHandler(taskUsecase usecase.TaskUseCase) *handler.TaskHandler {
-	return handler.NewTaskHandler(taskUsecase)
+func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo, pubSubRepo repository.PubSubRepo) usecase.TaskUseCase {
+	return usecase.NewTaskUseCase(storageRepo, taskRepo, pubSubRepo)
+}
+
+func NewLogger(cfg *config.AppConfig) (*zap.Logger, error) {
+	return telemetry.NewLogger(cfg.TelemetryConfig.ServiceName)
+}
+
+func NewTaskHandler(taskUsecase usecase.TaskUseCase, logger *zap.Logger) *handler.TaskHandler {
+	return handler.NewTaskHandler(taskUsecase, logger)
 }
 
 // InitializeTaskDependencies injects all dependencies for task handler
 func InitializeTaskDependencies() (*handler.TaskHandler, error) {
 	wire.Build(ProviderSet)
 	return nil, nil
+}
+
+// InitializeTelemetry 初始化 OpenTelemetry
+func InitializeTelemetry(cfg telemetry.Config) (func(context.Context) error, error) {
+	return telemetry.InitTracer(cfg)
 }

@@ -7,14 +7,19 @@
 package di
 
 import (
+	"context"
 	"github.com/google/wire"
+	"github.com/uptrace/opentelemetry-go-extra/otelgorm"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 	"speech.local/apps/api-server/internal/handler"
 	"speech.local/apps/api-server/internal/repository"
 	"speech.local/apps/api-server/internal/usecase"
 	"speech.local/packages/config"
 	"speech.local/packages/db"
+	"speech.local/packages/redis"
 	"speech.local/packages/storage"
+	"speech.local/packages/telemetry"
 )
 
 // Injectors from wire.go:
@@ -34,8 +39,17 @@ func InitializeTaskDependencies() (*handler.TaskHandler, error) {
 		return nil, err
 	}
 	taskRepo := repository.NewTaskRepo(db)
-	taskUseCase := NewTaskUseCase(s3Storage, taskRepo)
-	taskHandler := NewTaskHandler(taskUseCase)
+	redisClient, err := ProvideRedisClient(appConfig)
+	if err != nil {
+		return nil, err
+	}
+	pubSubRepo := repository.NewPubSubRepo(redisClient)
+	taskUseCase := NewTaskUseCase(s3Storage, taskRepo, pubSubRepo)
+	logger, err := NewLogger(appConfig)
+	if err != nil {
+		return nil, err
+	}
+	taskHandler := NewTaskHandler(taskUseCase, logger)
 	return taskHandler, nil
 }
 
@@ -46,17 +60,31 @@ var ProviderSet = wire.NewSet(
 	NewAppConfig,
 	ProvideDB,
 
-	NewS3Storage, wire.Bind(new(repository.StorageRepo), new(*storage.S3Storage)), repository.NewTaskRepo, NewTaskUseCase,
+	NewS3Storage, wire.Bind(new(repository.StorageRepo), new(*storage.S3Storage)), ProvideRedisClient, repository.NewPubSubRepo, repository.NewTaskRepo, NewTaskUseCase,
+	NewLogger,
 	NewTaskHandler,
 )
 
+// NewAppConfig 載入環境變數
 func NewAppConfig() (*config.AppConfig, error) {
 	return config.NewAppConfig()
 }
 
+// ProvideTelemetryConfig 提取 TelemetryConfig
+func ProvideTelemetryConfig(cfg *config.AppConfig) telemetry.Config {
+	return cfg.TelemetryConfig
+}
+
 // ProvideDB 負責從 Config 提取 DBConfig 並建立 *gorm.DB 連線
 func ProvideDB(cfg *config.AppConfig) (*gorm.DB, error) {
-	return db.NewPostgresConn(cfg.DBConfig)
+	gdb, err := db.NewPostgresConn(cfg.DBConfig)
+	if err != nil {
+		return nil, err
+	}
+	if err := gdb.Use(otelgorm.NewPlugin()); err != nil {
+		return nil, err
+	}
+	return gdb, nil
 }
 
 // NewS3Storage 負責從 Config 提取 S3Config 並建立 S3 Client
@@ -64,10 +92,24 @@ func NewS3Storage(cfg *config.AppConfig) (*storage.S3Storage, error) {
 	return storage.NewS3Storage(cfg.S3Config)
 }
 
-func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo) usecase.TaskUseCase {
-	return usecase.NewTaskUseCase(storageRepo, taskRepo)
+// ProvideRedisClient 負責從 Config 提取 RedisConfig 並建立 Redis Client
+func ProvideRedisClient(cfg *config.AppConfig) (*redis.RedisClient, error) {
+	return redis.NewRedisClient(cfg.RedisConfig)
 }
 
-func NewTaskHandler(taskUsecase usecase.TaskUseCase) *handler.TaskHandler {
-	return handler.NewTaskHandler(taskUsecase)
+func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo, pubSubRepo repository.PubSubRepo) usecase.TaskUseCase {
+	return usecase.NewTaskUseCase(storageRepo, taskRepo, pubSubRepo)
+}
+
+func NewLogger(cfg *config.AppConfig) (*zap.Logger, error) {
+	return telemetry.NewLogger(cfg.TelemetryConfig.ServiceName)
+}
+
+func NewTaskHandler(taskUsecase usecase.TaskUseCase, logger *zap.Logger) *handler.TaskHandler {
+	return handler.NewTaskHandler(taskUsecase, logger)
+}
+
+// InitializeTelemetry 初始化 OpenTelemetry
+func InitializeTelemetry(cfg telemetry.Config) (func(context.Context) error, error) {
+	return telemetry.InitTracer(cfg)
 }

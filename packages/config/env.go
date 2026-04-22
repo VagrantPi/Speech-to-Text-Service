@@ -5,7 +5,9 @@ import (
 
 	"github.com/spf13/viper"
 	"speech.local/packages/db"
+	"speech.local/packages/redis"
 	"speech.local/packages/storage"
+	"speech.local/packages/telemetry"
 )
 
 // LoadConfig 負責將 .env 或系統環境變數載入到指定的 Struct 中
@@ -36,9 +38,8 @@ func LoadConfig(configStruct interface{}) error {
 // AppConfig 是 API Server 專屬的設定總表
 // 使用 mapstructure tag 來對應 Viper 讀取出來的 key
 type AppConfig struct {
-	APIPort   string `mapstructure:"API_PORT"`
-	RedisHost string `mapstructure:"REDIS_HOST"`
-	MQURL     string `mapstructure:"MQ_URL"`
+	APIPort string `mapstructure:"API_PORT"`
+	MQURL   string `mapstructure:"MQ_URL"`
 
 	AWSRegion           string `mapstructure:"AWS_REGION"`
 	AWSS3Bucket         string `mapstructure:"AWS_S3_BUCKET"`
@@ -47,9 +48,12 @@ type AppConfig struct {
 	AWSEndpoint         string `mapstructure:"AWS_ENDPOINT"`
 	ExpirationInMinutes int    `mapstructure:"EXPIRATION_IN_MINUTES"`
 
-	S3Config storage.S3Config `mapstructure:",squash"`
+	OpenAIAPIKey string `mapstructure:"OPENAI_API_KEY"`
 
-	DBConfig db.Config `mapstructure:",squash"`
+	S3Config        storage.S3Config `mapstructure:",squash"`
+	DBConfig        db.Config        `mapstructure:",squash"`
+	RedisConfig     redis.Config     `mapstructure:",squash"`
+	TelemetryConfig telemetry.Config `mapstructure:",squash"`
 }
 
 // NewAppConfig 是一個 Provider，供 Wire 依賴注入使用

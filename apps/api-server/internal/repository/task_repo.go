@@ -11,6 +11,7 @@ import (
 // TaskRepo 是 api-server 專屬的微型介面 (ISP)
 type TaskRepo interface {
 	CreateTaskWithOutbox(ctx context.Context, s3Key string) (uint, error)
+	GetByID(ctx context.Context, id uint) (*models.Task, error)
 }
 
 // 這是 api-server 端的具體實作，負責「協調」底層機制與業務領域
@@ -20,6 +21,14 @@ type taskRepoImpl struct {
 
 func NewTaskRepo(dbConn *gorm.DB) TaskRepo {
 	return &taskRepoImpl{db: dbConn}
+}
+
+func (r *taskRepoImpl) GetByID(ctx context.Context, id uint) (*models.Task, error) {
+	var task models.Task
+	if err := r.db.WithContext(ctx).First(&task, id).Error; err != nil {
+		return nil, err
+	}
+	return &task, nil
 }
 
 func (r *taskRepoImpl) CreateTaskWithOutbox(ctx context.Context, s3Key string) (uint, error) {

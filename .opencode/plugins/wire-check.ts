@@ -90,13 +90,13 @@ export const WireCheckPlugin: Plugin = async ({ $, directory, client }) => {
             variant: "error",
           },
         });
-        await client.session.prompt({
-          path: { id: event.properties.sessionID },
-          body: {
-            model: { providerID: "opencode", modelID: "minimax-m2.5-free" },
-            parts: [{ type: "text", text: "Fix the wire errors above." }],
-          },
-        })
+        // await client.session.prompt({
+        //   path: { id: event.properties.sessionID },
+        //   body: {
+        //     model: { providerID: "opencode", modelID: "minimax-m2.5-free" },
+        //     parts: [{ type: "text", text: "Fix the wire errors above." }],
+        //   },
+        // })
 
       } else {
         await client.tui.showToast({

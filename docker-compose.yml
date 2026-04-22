@@ -70,6 +70,20 @@ services:
       timeout: 5s
       retries: 5
 
+  # 5. 反向代理 (Nginx)
+  # nginx:
+  #   image: nginx:alpine
+  #   container_name: speech-nginx
+  #   ports:
+  #     - "80:80"
+  #   volumes:
+  #     - ./apps/web:/usr/share/nginx/html
+  #     - ./nginx.conf:/etc/nginx/nginx.conf:ro
+  #   depends_on:
+  #     - api-server
+  #   networks:
+  #     - speech-network
+
   # ==========================================
   # 應用程式層 (Microservices)
   # 注意：初期開發時，建議先在主機用 go run 啟動，
@@ -140,3 +154,7 @@ services:
 volumes:
   pgdata:
   miniodata:
+
+networks:
+  speech-network:
+    driver: bridge

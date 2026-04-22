@@ -8,6 +8,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
+	"speech.local/packages/db/models"
 )
 
 type MockStorage struct {
@@ -32,6 +34,23 @@ type MockTaskRepository struct {
 func (m *MockTaskRepository) CreateTaskWithOutbox(ctx context.Context, s3Key string) (uint, error) {
 	args := m.Called(ctx, s3Key)
 	return args.Get(0).(uint), args.Error(1)
+}
+
+func (m *MockTaskRepository) GetByID(ctx context.Context, id uint) (*models.Task, error) {
+	args := m.Called(ctx, id)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).(*models.Task), args.Error(1)
+}
+
+type MockPubSubRepo struct {
+	mock.Mock
+}
+
+func (m *MockPubSubRepo) Subscribe(ctx context.Context, channel string) (<-chan string, func() error, error) {
+	args := m.Called(ctx, channel)
+	return args.Get(0).(<-chan string), args.Get(1).(func() error), args.Error(2)
 }
 
 func TestGetAudioUploadURL(t *testing.T) {
@@ -158,7 +177,8 @@ func TestGetAudioUploadURL(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockStorage := new(MockStorage)
 			mockTaskRepo := new(MockTaskRepository)
-			usecase := NewTaskUseCase(mockStorage, mockTaskRepo)
+			mockPubSub := new(MockPubSubRepo)
+			usecase := NewTaskUseCase(mockStorage, mockTaskRepo, mockPubSub)
 
 			tt.setupMock(mockStorage)
 
