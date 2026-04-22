@@ -1,0 +1,22 @@
+# Git
+.git
+.gitignore
+
+# GitHub
+.github
+
+# IDE & Editor
+.opencode
+.vscode
+*.swp
+*.swo
+
+# Environment (contains secrets)
+.env
+.env.example
+
+# Scripts (local only)
+scripts
+
+# Docs
+*.md
