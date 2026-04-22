@@ -27,8 +27,6 @@ func NewRabbitMQPublisher(url string) (*RabbitMQPublisher, error) {
 	return &RabbitMQPublisher{conn: conn, ch: ch}, nil
 }
 
-var _ Publisher = (*RabbitMQPublisher)(nil)
-
 func (p *RabbitMQPublisher) Publish(ctx context.Context, topic string, payload []byte) error {
 	err := p.ch.PublishWithContext(ctx,
 		topic,
