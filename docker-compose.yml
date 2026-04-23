@@ -46,6 +46,12 @@ services:
       REDIS_HOST: redis:6379
       MINIO_ENDPOINT: http://minio:9000
       AWS_ENDPOINT: http://minio:9000
+      AWS_PUBLIC_ENDPOINT: http://localhost:9000
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY: minioadmin
+      AWS_SECRET_KEY: minioadmin
+      AWS_S3_BUCKET: uploads
+      EXPIRATION_IN_MINUTES: "15"
     networks:
       - speech-network
 
@@ -112,6 +118,17 @@ services:
       DB_NAME: speech_db
       DB_SSLMODE: disable
       MQ_URL: amqp://guest:guest@rabbitmq:5672/
+    networks:
+      - speech-network
+
+  web:
+    image: speech-to-text-web:latest
+    ports:
+      - "8081:80"
+    volumes:
+      - ./apps/web:/usr/share/nginx/html
+    depends_on:
+      - api-server
     networks:
       - speech-network
 

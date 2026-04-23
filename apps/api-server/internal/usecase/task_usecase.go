@@ -39,13 +39,15 @@ type taskUseCase struct {
 	storageRepo repository.StorageRepo
 	taskRepo    repository.TaskRepo
 	pubSubRepo  repository.PubSubRepo
+	debug       bool
 }
 
-func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo, pubSubRepo repository.PubSubRepo) TaskUseCase {
+func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo, pubSubRepo repository.PubSubRepo, debug bool) TaskUseCase {
 	return &taskUseCase{
 		storageRepo: storageRepo,
 		taskRepo:    taskRepo,
 		pubSubRepo:  pubSubRepo,
+		debug:       debug,
 	}
 }
 
@@ -57,6 +59,11 @@ func (u *taskUseCase) GetAudioUploadURL(ctx context.Context, fileExtension, cont
 
 	filename := uuid.New().String()
 	s3Key := fmt.Sprintf("%s%s%s", s3UploadPath, filename, ext)
+
+	if u.debug {
+		mockURL := fmt.Sprintf("http://localhost:9000/uploads/audio/%s%s?mock=true", filename, ext)
+		return mockURL, s3Key, nil
+	}
 
 	uploadURL, err := u.storageRepo.GenerateUploadURL(ctx, s3Key, contentType)
 	if err != nil {

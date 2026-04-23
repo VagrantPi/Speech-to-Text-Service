@@ -33,8 +33,10 @@ func LoadConfig(configStruct interface{}) error {
 	addEnvToViper("AWS_ACCESS_KEY", "AWS_ACCESS_KEY")
 	addEnvToViper("AWS_SECRET_KEY", "AWS_SECRET_KEY")
 	addEnvToViper("AWS_ENDPOINT", "AWS_ENDPOINT")
+	addEnvToViper("AWS_PUBLIC_ENDPOINT", "AWS_PUBLIC_ENDPOINT")
 	addEnvToViper("EXPIRATION_IN_MINUTES", "EXPIRATION_IN_MINUTES")
 	addEnvToViper("OPENAI_API_KEY", "OPENAI_API_KEY")
+	addEnvToViper("DEBUG", "DEBUG")
 	addEnvToViper("API_PORT", "API_PORT")
 	addEnvToViper("OTEL_SERVICE_NAME", "OTEL_SERVICE_NAME")
 	addEnvToViper("OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -68,9 +70,11 @@ type AppConfig struct {
 	AWSAccessKey        string `mapstructure:"AWS_ACCESS_KEY"`
 	AWSSecretKey        string `mapstructure:"AWS_SECRET_KEY"`
 	AWSEndpoint         string `mapstructure:"AWS_ENDPOINT"`
+	AWSPublicEndpoint   string `mapstructure:"AWS_PUBLIC_ENDPOINT"`
 	ExpirationInMinutes int    `mapstructure:"EXPIRATION_IN_MINUTES"`
 
 	OpenAIAPIKey string `mapstructure:"OPENAI_API_KEY"`
+	Debug        bool   `mapstructure:"DEBUG"`
 
 	S3Config        storage.S3Config `mapstructure:",squash"`
 	DBConfig        db.Config        `mapstructure:",squash"`

@@ -17,6 +17,7 @@ type S3Config struct {
 	AccessKey           string `mapstructure:"AWS_ACCESS_KEY"`
 	SecretKey           string `mapstructure:"AWS_SECRET_KEY"`
 	Endpoint            string `mapstructure:"AWS_ENDPOINT"`
+	PublicEndpoint      string `mapstructure:"AWS_PUBLIC_ENDPOINT"`
 	ExpirationInMinutes int    `mapstructure:"EXPIRATION_IN_MINUTES"`
 }
 
@@ -24,10 +25,12 @@ type S3Storage struct {
 	client              *s3.Client
 	bucket              string
 	expirationInMinutes int
+	publicEndpoint      string
+	publicClient        *s3.Client
 }
 
 func NewS3Storage(cfg S3Config) (*S3Storage, error) {
-	client := s3.NewFromConfig(aws.Config{
+	awsConfig := aws.Config{
 		Region: cfg.Region,
 		Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
 			return aws.Credentials{
@@ -35,21 +38,57 @@ func NewS3Storage(cfg S3Config) (*S3Storage, error) {
 				SecretAccessKey: cfg.SecretKey,
 			}, nil
 		}),
+	}
+
+	if cfg.Endpoint != "" {
+		awsConfig.BaseEndpoint = aws.String(cfg.Endpoint)
+	}
+
+	client := s3.NewFromConfig(awsConfig, func(o *s3.Options) {
+		o.UsePathStyle = true
+		if cfg.Endpoint != "" {
+			o.BaseEndpoint = aws.String(cfg.Endpoint)
+		}
 	})
 
 	if client == nil {
 		return nil, fmt.Errorf("failed to create S3 client")
 	}
 
-	return &S3Storage{
+	s := &S3Storage{
 		client:              client,
 		bucket:              cfg.Bucket,
 		expirationInMinutes: cfg.ExpirationInMinutes,
-	}, nil
+		publicEndpoint:      cfg.PublicEndpoint,
+	}
+
+	if cfg.PublicEndpoint != "" {
+		publicConfig := aws.Config{
+			Region: cfg.Region,
+			Credentials: aws.CredentialsProviderFunc(func(ctx context.Context) (aws.Credentials, error) {
+				return aws.Credentials{
+					AccessKeyID:     cfg.AccessKey,
+					SecretAccessKey: cfg.SecretKey,
+				}, nil
+			}),
+			BaseEndpoint: aws.String(cfg.PublicEndpoint),
+		}
+
+		s.publicClient = s3.NewFromConfig(publicConfig, func(o *s3.Options) {
+			o.UsePathStyle = true
+			o.BaseEndpoint = aws.String(cfg.PublicEndpoint)
+		})
+	}
+
+	return s, nil
 }
 
 func (s *S3Storage) GenerateUploadURL(ctx context.Context, objectKey, contentType string) (string, error) {
-	presignClient := s3.NewPresignClient(s.client)
+	client := s.client
+	if s.publicClient != nil {
+		client = s.publicClient
+	}
+	presignClient := s3.NewPresignClient(client)
 
 	input := &s3.PutObjectInput{
 		Bucket:      aws.String(s.bucket),

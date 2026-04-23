@@ -23,9 +23,10 @@ type sttUseCase struct {
 	logger      *zap.Logger
 	processed   metric.Int64Counter
 	failed      metric.Int64Counter
+	debug       bool
 }
 
-func NewSTTUseCase(storageRepo repository.StorageRepo, sttRepo repository.STTRepo, taskRepo repository.TaskRepo, logger *zap.Logger) (STTUseCase, error) {
+func NewSTTUseCase(storageRepo repository.StorageRepo, sttRepo repository.STTRepo, taskRepo repository.TaskRepo, logger *zap.Logger, debug bool) (STTUseCase, error) {
 	processed, err := telemetry.NewCounter("stt_tasks_processed_total", "Total number of STT tasks processed")
 	if err != nil {
 		return nil, err
@@ -42,6 +43,7 @@ func NewSTTUseCase(storageRepo repository.StorageRepo, sttRepo repository.STTRep
 		logger:      logger,
 		processed:   processed,
 		failed:      failed,
+		debug:       debug,
 	}, nil
 }
 
@@ -52,17 +54,24 @@ func (uc *sttUseCase) ProcessTask(ctx context.Context, taskID uint, s3Key string
 		zap.String("s3_key", s3Key),
 	)
 
-	localFilePath, err := uc.storageRepo.DownloadToTempFile(ctx, s3Key)
-	if err != nil {
-		log.Error("ProcessTask: failed to download",
-			zap.Uint("task_id", taskID),
-			zap.String("s3_key", s3Key),
-			zap.Error(err),
-		)
-		uc.failed.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "download_failed")))
-		return err
+	var localFilePath string
+	var err error
+
+	if uc.debug {
+		localFilePath = "/tmp/mock-audio.wav"
+	} else {
+		localFilePath, err = uc.storageRepo.DownloadToTempFile(ctx, s3Key)
+		if err != nil {
+			log.Error("ProcessTask: failed to download",
+				zap.Uint("task_id", taskID),
+				zap.String("s3_key", s3Key),
+				zap.Error(err),
+			)
+			uc.failed.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "download_failed")))
+			return err
+		}
+		defer os.Remove(localFilePath)
 	}
-	defer os.Remove(localFilePath)
 
 	transcript, err := uc.sttRepo.Transcribe(ctx, localFilePath)
 	if err != nil {

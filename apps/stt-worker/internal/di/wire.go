@@ -30,8 +30,8 @@ var ProviderSet = wire.NewSet(
 	NewS3Storage,
 	wire.Bind(new(repository.StorageRepo), new(*storage.S3Storage)),
 
-	NewOpenAISTTService,
-	wire.Bind(new(repository.STTRepo), new(*stt.OpenAISTTService)),
+	NewSTTRepo,
+	wire.Bind(new(repository.STTRepo), new(stt.STTRepoInterface)),
 
 	NewTaskRepo,
 
@@ -67,7 +67,10 @@ func NewS3Storage(cfg *config.AppConfig) (*storage.S3Storage, error) {
 	return storage.NewS3Storage(cfg.S3Config)
 }
 
-func NewOpenAISTTService(cfg *config.AppConfig) (*stt.OpenAISTTService, error) {
+func NewSTTRepo(cfg *config.AppConfig) (stt.STTRepoInterface, error) {
+	if cfg.Debug {
+		return stt.NewMockSTTService(), nil
+	}
 	return stt.NewOpenAISTTService(cfg.OpenAIAPIKey), nil
 }
 
@@ -75,8 +78,8 @@ func NewTaskRepo(db *gorm.DB) repository.TaskRepo {
 	return repository.NewTaskRepo(db)
 }
 
-func NewSTTUseCase(storageRepo repository.StorageRepo, sttRepo repository.STTRepo, taskRepo repository.TaskRepo, logger *zap.Logger) (usecase.STTUseCase, error) {
-	return usecase.NewSTTUseCase(storageRepo, sttRepo, taskRepo, logger)
+func NewSTTUseCase(storageRepo repository.StorageRepo, sttRepo repository.STTRepo, taskRepo repository.TaskRepo, logger *zap.Logger, cfg *config.AppConfig) (usecase.STTUseCase, error) {
+	return usecase.NewSTTUseCase(storageRepo, sttRepo, taskRepo, logger, cfg.Debug)
 }
 
 func NewLogger(cfg *config.AppConfig) (*zap.Logger, error) {

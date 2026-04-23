@@ -15,10 +15,11 @@ import (
 type TaskHandler struct {
 	usecase usecase.TaskUseCase
 	logger  *zap.Logger
+	debug   bool
 }
 
-func NewTaskHandler(usecase usecase.TaskUseCase, logger *zap.Logger) *TaskHandler {
-	return &TaskHandler{usecase: usecase, logger: logger}
+func NewTaskHandler(usecase usecase.TaskUseCase, logger *zap.Logger, debug bool) *TaskHandler {
+	return &TaskHandler{usecase: usecase, logger: logger, debug: debug}
 }
 
 type ConfirmTaskRequest struct {
@@ -54,10 +55,6 @@ func (h *TaskHandler) HandleGetUploadURL(c *gin.Context) {
 		zap.String("content_type", contentType),
 	)
 
-	// TODO: 1. Redis 做單一 ip 與用戶限流
-
-	// TODO 2. 如果音訊檔太大需要切割
-
 	uploadURL, s3Key, err := h.usecase.GetAudioUploadURL(c.Request.Context(), ext, contentType)
 	if err != nil {
 		if err == usecase.ErrInvalidFileExtension {
@@ -81,6 +78,32 @@ func (h *TaskHandler) HandleGetUploadURL(c *gin.Context) {
 	c.JSON(http.StatusOK, GetUploadURLResponse{
 		UploadURL: uploadURL,
 		S3Key:     s3Key,
+	})
+}
+
+func (h *TaskHandler) HandleMockUpload(c *gin.Context) {
+	if !h.debug {
+		c.JSON(http.StatusNotFound, gin.H{"error": "mock upload endpoint not found"})
+		return
+	}
+
+	log := telemetry.WithTraceID(c.Request.Context(), h.logger)
+	log.Info("HandleMockUpload: simulating upload success",
+		zap.String("s3key", c.Param("s3key")),
+	)
+
+	taskID, err := h.usecase.ConfirmTask(c.Request.Context(), c.Param("s3key"))
+	if err != nil {
+		log.Error("HandleMockUpload: failed to confirm task", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	log.Info("HandleMockUpload: task created", zap.Uint("task_id", taskID))
+
+	c.JSON(http.StatusOK, gin.H{
+		"status":  "uploaded",
+		"task_id": taskID,
 	})
 }
 

@@ -65,6 +65,7 @@ func main() {
 		}
 		api.GET("/upload-url", taskHandler.HandleGetUploadURL)
 	}
+	r.POST("/uploads/uploads/audio/:s3key", taskHandler.HandleMockUpload)
 
 	srv := &http.Server{
 		Addr:    ":8080",

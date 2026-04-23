@@ -27,8 +27,8 @@ var ProviderSet = wire.NewSet(
 	NewAppConfig,
 	ProvideDB,
 
-	NewOpenAIStreamService,
-	wire.Bind(new(repository.LLMRepo), new(*llm.OpenAIStreamService)),
+	NewLLMRepo,
+	wire.Bind(new(repository.LLMRepo), new(llm.LLMRepoInterface)),
 
 	ProvideRedisClient,
 	wire.Bind(new(repository.PubSubRepo), new(*redis.RedisClient)),
@@ -63,8 +63,11 @@ func ProvideDB(cfg *config.AppConfig) (*gorm.DB, error) {
 	return gdb, nil
 }
 
-func NewOpenAIStreamService(cfg *config.AppConfig) *llm.OpenAIStreamService {
-	return llm.NewOpenAIStreamService(cfg.OpenAIAPIKey)
+func NewLLMRepo(cfg *config.AppConfig) (llm.LLMRepoInterface, error) {
+	if cfg.Debug {
+		return llm.NewMockLLMService(), nil
+	}
+	return llm.NewOpenAIStreamService(cfg.OpenAIAPIKey), nil
 }
 
 func ProvideRedisClient(cfg *config.AppConfig) (*redis.RedisClient, error) {

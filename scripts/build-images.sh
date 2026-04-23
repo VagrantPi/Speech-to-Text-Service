@@ -13,7 +13,7 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-SERVICES=("api-server" "stt-worker" "llm-worker" "outbox-relay" "infra-migration")
+SERVICES=("api-server" "stt-worker" "llm-worker" "outbox-relay" "infra-migration" "web")
 REGISTRY="speech-to-text"
 TAG="${1:-latest}"
 

@@ -44,12 +44,12 @@ func InitializeTaskDependencies() (*handler.TaskHandler, error) {
 		return nil, err
 	}
 	pubSubRepo := repository.NewPubSubRepo(redisClient)
-	taskUseCase := NewTaskUseCase(s3Storage, taskRepo, pubSubRepo)
+	taskUseCase := NewTaskUseCase(s3Storage, taskRepo, pubSubRepo, appConfig)
 	logger, err := NewLogger(appConfig)
 	if err != nil {
 		return nil, err
 	}
-	taskHandler := NewTaskHandler(taskUseCase, logger)
+	taskHandler := NewTaskHandler(taskUseCase, logger, appConfig)
 	return taskHandler, nil
 }
 
@@ -97,16 +97,16 @@ func ProvideRedisClient(cfg *config.AppConfig) (*redis.RedisClient, error) {
 	return redis.NewRedisClient(cfg.RedisConfig)
 }
 
-func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo, pubSubRepo repository.PubSubRepo) usecase.TaskUseCase {
-	return usecase.NewTaskUseCase(storageRepo, taskRepo, pubSubRepo)
+func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo, pubSubRepo repository.PubSubRepo, cfg *config.AppConfig) usecase.TaskUseCase {
+	return usecase.NewTaskUseCase(storageRepo, taskRepo, pubSubRepo, cfg.Debug)
 }
 
 func NewLogger(cfg *config.AppConfig) (*zap.Logger, error) {
 	return telemetry.NewLogger(cfg.TelemetryConfig.ServiceName)
 }
 
-func NewTaskHandler(taskUsecase usecase.TaskUseCase, logger *zap.Logger) *handler.TaskHandler {
-	return handler.NewTaskHandler(taskUsecase, logger)
+func NewTaskHandler(taskUsecase usecase.TaskUseCase, logger *zap.Logger, cfg *config.AppConfig) *handler.TaskHandler {
+	return handler.NewTaskHandler(taskUsecase, logger, cfg.Debug)
 }
 
 // InitializeTelemetry 初始化 OpenTelemetry

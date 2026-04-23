@@ -39,7 +39,10 @@ func InitializeWorker() (*worker.LLMWorker, error) {
 		return nil, err
 	}
 	taskRepo := NewTaskRepo(db)
-	openAIStreamService := NewOpenAIStreamService(appConfig)
+	llmRepoInterface, err := NewLLMRepo(appConfig)
+	if err != nil {
+		return nil, err
+	}
 	redisClient, err := ProvideRedisClient(appConfig)
 	if err != nil {
 		return nil, err
@@ -48,7 +51,7 @@ func InitializeWorker() (*worker.LLMWorker, error) {
 	if err != nil {
 		return nil, err
 	}
-	llmUseCase, err := NewLLMUseCase(taskRepo, openAIStreamService, redisClient, logger)
+	llmUseCase, err := NewLLMUseCase(taskRepo, llmRepoInterface, redisClient, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +65,7 @@ var ProviderSet = wire.NewSet(
 	NewAppConfig,
 	ProvideDB,
 
-	NewOpenAIStreamService, wire.Bind(new(repository.LLMRepo), new(*llm.OpenAIStreamService)), ProvideRedisClient, wire.Bind(new(repository.PubSubRepo), new(*redis.RedisClient)), NewTaskRepo,
+	NewLLMRepo, wire.Bind(new(repository.LLMRepo), new(llm.LLMRepoInterface)), ProvideRedisClient, wire.Bind(new(repository.PubSubRepo), new(*redis.RedisClient)), NewTaskRepo,
 
 	ProvideRabbitMQConsumer, wire.Bind(new(worker.MQConsumer), new(*mq.RabbitMQConsumer)), NewLogger,
 	NewLLMUseCase, worker.NewLLMWorker,
@@ -87,8 +90,11 @@ func ProvideDB(cfg *config.AppConfig) (*gorm.DB, error) {
 	return gdb, nil
 }
 
-func NewOpenAIStreamService(cfg *config.AppConfig) *llm.OpenAIStreamService {
-	return llm.NewOpenAIStreamService(cfg.OpenAIAPIKey)
+func NewLLMRepo(cfg *config.AppConfig) (llm.LLMRepoInterface, error) {
+	if cfg.Debug {
+		return llm.NewMockLLMService(), nil
+	}
+	return llm.NewOpenAIStreamService(cfg.OpenAIAPIKey), nil
 }
 
 func ProvideRedisClient(cfg *config.AppConfig) (*redis.RedisClient, error) {

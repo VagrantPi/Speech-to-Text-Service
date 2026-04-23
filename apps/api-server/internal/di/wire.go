@@ -78,16 +78,16 @@ func ProvideRedisClient(cfg *config.AppConfig) (*redis.RedisClient, error) {
 	return redis.NewRedisClient(cfg.RedisConfig)
 }
 
-func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo, pubSubRepo repository.PubSubRepo) usecase.TaskUseCase {
-	return usecase.NewTaskUseCase(storageRepo, taskRepo, pubSubRepo)
+func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo, pubSubRepo repository.PubSubRepo, cfg *config.AppConfig) usecase.TaskUseCase {
+	return usecase.NewTaskUseCase(storageRepo, taskRepo, pubSubRepo, cfg.Debug)
 }
 
 func NewLogger(cfg *config.AppConfig) (*zap.Logger, error) {
 	return telemetry.NewLogger(cfg.TelemetryConfig.ServiceName)
 }
 
-func NewTaskHandler(taskUsecase usecase.TaskUseCase, logger *zap.Logger) *handler.TaskHandler {
-	return handler.NewTaskHandler(taskUsecase, logger)
+func NewTaskHandler(taskUsecase usecase.TaskUseCase, logger *zap.Logger, cfg *config.AppConfig) *handler.TaskHandler {
+	return handler.NewTaskHandler(taskUsecase, logger, cfg.Debug)
 }
 
 // InitializeTaskDependencies injects all dependencies for task handler
