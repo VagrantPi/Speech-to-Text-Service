@@ -2,12 +2,25 @@ package mq
 
 import (
 	"log"
+	"time"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
 func SetupTopology(url string) error {
-	conn, err := amqp.Dial(url)
+	var conn *amqp.Connection
+	var err error
+
+	maxRetries := 5
+	for i := 0; i < maxRetries; i++ {
+		conn, err = amqp.Dial(url)
+		if err == nil {
+			break
+		}
+		log.Printf("⚠️ RabbitMQ 連線失敗 (嘗試 %d/%d): %v", i+1, maxRetries, err)
+		time.Sleep(2 * time.Second)
+	}
+
 	if err != nil {
 		return err
 	}

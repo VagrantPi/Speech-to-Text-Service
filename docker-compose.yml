@@ -4,22 +4,21 @@ services:
   # ==========================================
   infra-migration:
     image: speech-to-text-infra-migration:latest
-    env_file:
-      - apps/infra-migration/.env
     depends_on:
       postgres:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=root
-      - DB_PASSWORD=password
-      - DB_NAME=speech_db
-      - MQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - REDIS_HOST=redis:6379
-      - AWS_ENDPOINT=http://minio:9000
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: root
+      DB_PASSWORD: password
+      DB_NAME: speech_db
+      DB_SSLMODE: disable
+      MQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_HOST: redis:6379
+      AWS_ENDPOINT: http://minio:9000
     networks:
       - speech-network
 
@@ -28,8 +27,6 @@ services:
   # ==========================================
   api-server:
     image: speech-to-text-api-server:latest
-    env_file:
-      - apps/api-server/.env
     ports:
       - "8080:8080"
     depends_on:
@@ -40,21 +37,20 @@ services:
       infra-migration:
         condition: service_completed_successfully
     environment:
-      - DB_HOST=postgres
-      - REDIS_HOST=redis:6379
-      - MINIO_ENDPOINT=minio:9000
-      - DB_PORT=5432
-      - DB_USER=root
-      - DB_PASSWORD=password
-      - DB_NAME=speech_db
-      - AWS_ENDPOINT=http://minio:9000
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: root
+      DB_PASSWORD: password
+      DB_NAME: speech_db
+      DB_SSLMODE: disable
+      REDIS_HOST: redis:6379
+      MINIO_ENDPOINT: http://minio:9000
+      AWS_ENDPOINT: http://minio:9000
     networks:
       - speech-network
 
   stt-worker:
     image: speech-to-text-stt-worker:latest
-    env_file:
-      - apps/stt-worker/.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -63,21 +59,20 @@ services:
       infra-migration:
         condition: service_completed_successfully
     environment:
-      - DB_HOST=postgres
-      - MQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - REDIS_HOST=redis:6379
-      - DB_PORT=5432
-      - DB_USER=root
-      - DB_PASSWORD=password
-      - DB_NAME=speech_db
-      - AWS_ENDPOINT=http://minio:9000
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: root
+      DB_PASSWORD: password
+      DB_NAME: speech_db
+      DB_SSLMODE: disable
+      MQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_HOST: redis:6379
+      AWS_ENDPOINT: http://minio:9000
     networks:
       - speech-network
 
   llm-worker:
     image: speech-to-text-llm-worker:latest
-    env_file:
-      - apps/llm-worker/.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -88,21 +83,20 @@ services:
       infra-migration:
         condition: service_completed_successfully
     environment:
-      - DB_HOST=postgres
-      - MQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - REDIS_HOST=redis:6379
-      - DB_PORT=5432
-      - DB_USER=root
-      - DB_PASSWORD=password
-      - DB_NAME=speech_db
-      - AWS_ENDPOINT=http://minio:9000
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: root
+      DB_PASSWORD: password
+      DB_NAME: speech_db
+      DB_SSLMODE: disable
+      MQ_URL: amqp://guest:guest@rabbitmq:5672/
+      REDIS_HOST: redis:6379
+      AWS_ENDPOINT: http://minio:9000
     networks:
       - speech-network
 
   outbox-relay:
     image: speech-to-text-outbox-relay:latest
-    env_file:
-      - apps/outbox-relay/.env
     depends_on:
       postgres:
         condition: service_healthy
@@ -111,12 +105,13 @@ services:
       infra-migration:
         condition: service_completed_successfully
     environment:
-      - DB_HOST=postgres
-      - MQ_URL=amqp://guest:guest@rabbitmq:5672/
-      - DB_PORT=5432
-      - DB_USER=root
-      - DB_PASSWORD=password
-      - DB_NAME=speech_db
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: root
+      DB_PASSWORD: password
+      DB_NAME: speech_db
+      DB_SSLMODE: disable
+      MQ_URL: amqp://guest:guest@rabbitmq:5672/
     networks:
       - speech-network
 
