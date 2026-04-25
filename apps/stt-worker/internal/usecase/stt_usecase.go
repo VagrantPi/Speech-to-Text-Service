@@ -57,9 +57,13 @@ func (uc *sttUseCase) ProcessTask(ctx context.Context, taskID uint, s3Key string
 	var localFilePath string
 	var err error
 
+	log.Info("DEBUG: debug mode", zap.Bool("debug", uc.debug))
+
 	if uc.debug {
 		localFilePath = "/tmp/mock-audio.wav"
+		log.Info("DEBUG: using mock path")
 	} else {
+		log.Info("DEBUG: attempting download", zap.String("s3_key", s3Key))
 		localFilePath, err = uc.storageRepo.DownloadToTempFile(ctx, s3Key)
 		if err != nil {
 			log.Error("ProcessTask: failed to download",

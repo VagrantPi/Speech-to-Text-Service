@@ -83,6 +83,22 @@ func NewS3Storage(cfg S3Config) (*S3Storage, error) {
 	return s, nil
 }
 
+func (s *S3Storage) EnsureBucket(ctx context.Context) error {
+	_, err := s.client.HeadBucket(ctx, &s3.HeadBucketInput{
+		Bucket: aws.String(s.bucket),
+	})
+	if err == nil {
+		return nil
+	}
+	_, createErr := s.client.CreateBucket(ctx, &s3.CreateBucketInput{
+		Bucket: aws.String(s.bucket),
+	})
+	if createErr != nil {
+		return createErr
+	}
+	return nil
+}
+
 func (s *S3Storage) GenerateUploadURL(ctx context.Context, objectKey, contentType string) (string, error) {
 	client := s.client
 	if s.publicClient != nil {

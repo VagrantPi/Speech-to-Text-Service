@@ -21,6 +21,11 @@ func (m *MockStorage) GenerateUploadURL(ctx context.Context, objectKey, contentT
 	return args.String(0), args.Error(1)
 }
 
+func (m *MockStorage) EnsureBucket(ctx context.Context) error {
+	args := m.Called(ctx)
+	return args.Error(0)
+}
+
 func (m *MockStorage) DownloadToTempFile(ctx context.Context, s3Key string) (string, error) {
 	args := m.Called(ctx, s3Key)
 	return args.String(0), args.Error(1)
@@ -178,7 +183,7 @@ func TestGetAudioUploadURL(t *testing.T) {
 			mockStorage := new(MockStorage)
 			mockTaskRepo := new(MockTaskRepository)
 			mockPubSub := new(MockPubSubRepo)
-			usecase := NewTaskUseCase(mockStorage, mockTaskRepo, mockPubSub)
+			usecase := NewTaskUseCase(mockStorage, mockTaskRepo, mockPubSub, false)
 
 			tt.setupMock(mockStorage)
 

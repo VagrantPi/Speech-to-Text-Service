@@ -60,5 +60,6 @@ func (s *OpenAIStreamService) GenerateSummaryStream(ctx context.Context, transcr
 		}
 	}
 
+	close(tokenChan)
 	return fullSummary.String(), nil
 }

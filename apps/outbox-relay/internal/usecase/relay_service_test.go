@@ -7,6 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/zap"
 	"gorm.io/datatypes"
 
 	"speech.local/packages/db/models"
@@ -65,9 +66,9 @@ func TestProcessBatch(t *testing.T) {
 			name:      "success - process all events",
 			batchSize: 10,
 			pendingEvents: []*models.OutboxEvent{
-				{ID: 1, Topic: "task.created", Payload: datatypes.JSON(`{"id":1}`)},
-				{ID: 2, Topic: "task.updated", Payload: datatypes.JSON(`{"id":2}`)},
-				{ID: 3, Topic: "task.completed", Payload: datatypes.JSON(`{"id":3}`)},
+				{ID: 1, Topic: "stt-queue", Payload: datatypes.JSON(`{"id":1}`)},
+				{ID: 2, Topic: "stt-queue", Payload: datatypes.JSON(`{"id":2}`)},
+				{ID: 3, Topic: "llm-queue", Payload: datatypes.JSON(`{"id":3}`)},
 			},
 			setupPublisher: func(m *MockPublisher, events []*models.OutboxEvent) {
 				for _, e := range events {
@@ -95,9 +96,9 @@ func TestProcessBatch(t *testing.T) {
 			name:      "publish failure - should not mark as processed",
 			batchSize: 10,
 			pendingEvents: []*models.OutboxEvent{
-				{ID: 1, Topic: "task.created", Payload: datatypes.JSON(`{"id":1}`)},
-				{ID: 2, Topic: "task.updated", Payload: datatypes.JSON(`{"id":2}`)},
-				{ID: 3, Topic: "task.completed", Payload: datatypes.JSON(`{"id":3}`)},
+				{ID: 1, Topic: "stt-queue", Payload: datatypes.JSON(`{"id":1}`)},
+				{ID: 2, Topic: "stt-queue", Payload: datatypes.JSON(`{"id":2}`)},
+				{ID: 3, Topic: "llm-queue", Payload: datatypes.JSON(`{"id":3}`)},
 			},
 			setupPublisher: func(m *MockPublisher, events []*models.OutboxEvent) {
 				m.On("Publish", ctx, events[0].Topic, []byte(events[0].Payload)).Return(nil)
@@ -115,8 +116,8 @@ func TestProcessBatch(t *testing.T) {
 			name:      "all publish failures - skipped but not marked as failed",
 			batchSize: 10,
 			pendingEvents: []*models.OutboxEvent{
-				{ID: 1, Topic: "task.created", Payload: datatypes.JSON(`{"id":1}`)},
-				{ID: 2, Topic: "task.updated", Payload: datatypes.JSON(`{"id":2}`)},
+				{ID: 1, Topic: "stt-queue", Payload: datatypes.JSON(`{"id":1}`)},
+				{ID: 2, Topic: "stt-queue", Payload: datatypes.JSON(`{"id":2}`)},
 			},
 			setupPublisher: func(m *MockPublisher, events []*models.OutboxEvent) {
 				for _, e := range events {
@@ -142,7 +143,8 @@ func TestProcessBatch(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			mockPublisher := new(MockPublisher)
 			mockRepo := new(MockRepoOutboxEvent)
-			usecase := NewRelayService(mockPublisher, mockRepo)
+			logger, _ := zap.NewDevelopment()
+			usecase, _ := NewRelayService(mockPublisher, mockRepo, logger)
 
 			if tt.fetchErr == nil && tt.pendingEvents != nil {
 				mockRepo.On("FetchPendingEvents", ctx, tt.batchSize).Return(tt.pendingEvents, nil)

@@ -39,7 +39,7 @@ func (r *taskRepoImpl) CreateTaskWithOutbox(ctx context.Context, s3Key string) (
 	}
 
 	// 呼叫底層的高階函數，把真正的 CRUD 動作透過閉包傳進去
-	return db.ExecuteWithOutbox(r.db, models.AggregateTypeTask, "task.created", payload, func(tx *gorm.DB) (uint, error) {
+	return db.ExecuteWithOutbox(r.db, models.AggregateTypeTask, "stt-queue", payload, func(tx *gorm.DB) (uint, error) {
 		task := &models.Task{
 			Status: "CREATED",
 			S3Key:  s3Key,

@@ -108,10 +108,14 @@ func (s *relayService) PollAndRelay(ctx context.Context) error {
 
 	events, err := s.repo.FetchPendingEvents(ctx, 50)
 	if err != nil {
+		log.Error("FetchPendingEvents error", zap.Error(err))
 		return err
 	}
 
+	log.Info("PollAndRelay: fetched events", zap.Int("count", len(events)))
+
 	for _, event := range events {
+		log.Info("Processing event", zap.Uint("id", event.ID), zap.String("topic", event.Topic))
 		err := s.publisher.Publish(ctx, event.Topic, event.Payload)
 		if err != nil {
 			s.failed.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "publish_failed")))

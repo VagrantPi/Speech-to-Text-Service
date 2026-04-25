@@ -24,8 +24,8 @@ func (r *taskRepoImpl) UpdateTranscript(ctx context.Context, taskID uint, transc
 	_, err := db.ExecuteWithOutbox(
 		r.db,
 		1,
-		"task.llm",
-		map[string]interface{}{"task_id": taskID},
+		"llm-queue",
+		map[string]interface{}{"task_id": taskID, "transcript": transcript},
 		func(tx *gorm.DB) (uint, error) {
 			err := tx.WithContext(ctx).Model(&models.Task{}).Where("id = ?", taskID).Updates(map[string]interface{}{
 				"transcript": transcript,

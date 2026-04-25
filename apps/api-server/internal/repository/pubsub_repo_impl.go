@@ -17,7 +17,7 @@ func NewPubSubRepo(redisClient *redisclient.RedisClient) PubSubRepo {
 func (r *PubSubRepoImpl) Subscribe(ctx context.Context, channel string) (<-chan string, func() error, error) {
 	pubsub := r.redisClient.Subscribe(ctx, channel)
 
-	ch := make(chan string, 1)
+	ch := make(chan string, 100)
 
 	go func() {
 		for msg := range pubsub.Channel() {
@@ -27,6 +27,7 @@ func (r *PubSubRepoImpl) Subscribe(ctx context.Context, channel string) (<-chan 
 				return
 			}
 		}
+		close(ch)
 	}()
 
 	return ch, pubsub.Close, nil

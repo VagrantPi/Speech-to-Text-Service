@@ -12,6 +12,7 @@ import (
 	"github.com/uptrace/opentelemetry-go-extra/otelgorm"
 	"go.uber.org/zap"
 	"gorm.io/gorm"
+	"log"
 	"speech.local/apps/api-server/internal/handler"
 	"speech.local/apps/api-server/internal/repository"
 	"speech.local/apps/api-server/internal/usecase"
@@ -89,7 +90,14 @@ func ProvideDB(cfg *config.AppConfig) (*gorm.DB, error) {
 
 // NewS3Storage 負責從 Config 提取 S3Config 並建立 S3 Client
 func NewS3Storage(cfg *config.AppConfig) (*storage.S3Storage, error) {
-	return storage.NewS3Storage(cfg.S3Config)
+	s, err := storage.NewS3Storage(cfg.S3Config)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.EnsureBucket(context.Background()); err != nil {
+		log.Printf("warning: failed to ensure bucket: %v", err)
+	}
+	return s, nil
 }
 
 // ProvideRedisClient 負責從 Config 提取 RedisConfig 並建立 Redis Client
@@ -106,7 +114,7 @@ func NewLogger(cfg *config.AppConfig) (*zap.Logger, error) {
 }
 
 func NewTaskHandler(taskUsecase usecase.TaskUseCase, logger *zap.Logger, cfg *config.AppConfig) *handler.TaskHandler {
-	return handler.NewTaskHandler(taskUsecase, logger, cfg.Debug)
+	return handler.NewTaskHandler(taskUsecase, logger)
 }
 
 // InitializeTelemetry 初始化 OpenTelemetry

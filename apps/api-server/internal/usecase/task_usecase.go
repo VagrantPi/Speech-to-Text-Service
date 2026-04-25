@@ -60,11 +60,6 @@ func (u *taskUseCase) GetAudioUploadURL(ctx context.Context, fileExtension, cont
 	filename := uuid.New().String()
 	s3Key := fmt.Sprintf("%s%s%s", s3UploadPath, filename, ext)
 
-	if u.debug {
-		mockURL := fmt.Sprintf("http://localhost:9000/uploads/audio/%s%s?mock=true", filename, ext)
-		return mockURL, s3Key, nil
-	}
-
 	uploadURL, err := u.storageRepo.GenerateUploadURL(ctx, s3Key, contentType)
 	if err != nil {
 		return "", "", err

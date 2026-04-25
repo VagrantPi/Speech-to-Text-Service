@@ -18,7 +18,8 @@ type LLMWorker struct {
 }
 
 type taskPayload struct {
-	TaskID uint `json:"task_id"`
+	TaskID     uint   `json:"task_id"`
+	Transcript string `json:"transcript"`
 }
 
 func NewLLMWorker(consumer MQConsumer, uc usecase.LLMUseCase) *LLMWorker {
@@ -43,5 +44,5 @@ func (w *LLMWorker) handleMessage(ctx context.Context, payload []byte) error {
 
 	log.Printf("Processing task ID=%d", task.TaskID)
 
-	return w.uc.ProcessTask(ctx, task.TaskID)
+	return w.uc.ProcessTask(ctx, task.TaskID, task.Transcript)
 }

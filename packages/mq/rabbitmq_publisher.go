@@ -28,9 +28,10 @@ func NewRabbitMQPublisher(url string) (*RabbitMQPublisher, error) {
 }
 
 func (p *RabbitMQPublisher) Publish(ctx context.Context, topic string, payload []byte) error {
+	log.Printf("[RABBIT MQ PUBLISHER] Publishing to exchange=task_exchange, routing_key=%s, payload=%s", topic, string(payload))
 	err := p.ch.PublishWithContext(ctx,
+		"task_exchange",
 		topic,
-		"",
 		false,
 		false,
 		amqp.Publishing{

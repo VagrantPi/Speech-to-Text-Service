@@ -27,6 +27,9 @@ func ExecuteWithOutbox(
 		}
 		aggregateID = id
 
+		// Add aggregateID to payload before marshaling
+		payload["task_id"] = aggregateID
+
 		// 2. 準備 Outbox Payload
 		payloadBytes, err := json.Marshal(payload)
 		if err != nil {

@@ -15,11 +15,10 @@ import (
 type TaskHandler struct {
 	usecase usecase.TaskUseCase
 	logger  *zap.Logger
-	debug   bool
 }
 
-func NewTaskHandler(usecase usecase.TaskUseCase, logger *zap.Logger, debug bool) *TaskHandler {
-	return &TaskHandler{usecase: usecase, logger: logger, debug: debug}
+func NewTaskHandler(usecase usecase.TaskUseCase, logger *zap.Logger) *TaskHandler {
+	return &TaskHandler{usecase: usecase, logger: logger}
 }
 
 type ConfirmTaskRequest struct {
@@ -81,32 +80,6 @@ func (h *TaskHandler) HandleGetUploadURL(c *gin.Context) {
 	})
 }
 
-func (h *TaskHandler) HandleMockUpload(c *gin.Context) {
-	if !h.debug {
-		c.JSON(http.StatusNotFound, gin.H{"error": "mock upload endpoint not found"})
-		return
-	}
-
-	log := telemetry.WithTraceID(c.Request.Context(), h.logger)
-	log.Info("HandleMockUpload: simulating upload success",
-		zap.String("s3key", c.Param("s3key")),
-	)
-
-	taskID, err := h.usecase.ConfirmTask(c.Request.Context(), c.Param("s3key"))
-	if err != nil {
-		log.Error("HandleMockUpload: failed to confirm task", zap.Error(err))
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-
-	log.Info("HandleMockUpload: task created", zap.Uint("task_id", taskID))
-
-	c.JSON(http.StatusOK, gin.H{
-		"status":  "uploaded",
-		"task_id": taskID,
-	})
-}
-
 func (h *TaskHandler) HandleConfirmTask(c *gin.Context) {
 	var req ConfirmTaskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -156,7 +129,7 @@ func (h *TaskHandler) HandleGetTask(c *gin.Context) {
 }
 
 func (h *TaskHandler) HandleStreamSummary(c *gin.Context) {
-	taskIDStr := c.Param("task_id")
+	taskIDStr := c.Param("id")
 	taskID, err := strconv.ParseUint(taskIDStr, 10, 32)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid task_id"})
@@ -173,12 +146,25 @@ func (h *TaskHandler) HandleStreamSummary(c *gin.Context) {
 	c.Header("Content-Type", "text/event-stream")
 	c.Header("Cache-Control", "no-cache")
 	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no")
 
 	c.Stream(func(w io.Writer) bool {
-		if msg, ok := <-ch; ok {
+		select {
+		case msg, ok := <-ch:
+			if !ok {
+				h.logger.Info("HandleStreamSummary: channel closed, ending stream")
+				return false
+			}
+			h.logger.Info("HandleStreamSummary: sending SSE event",
+				zap.String("task_id", taskIDStr),
+				zap.String("msg", msg),
+			)
 			c.SSEvent("message", msg)
+			c.Writer.Flush()
 			return true
+		case <-c.Request.Context().Done():
+			h.logger.Info("HandleStreamSummary: client disconnected")
+			return false
 		}
-		return false
 	})
 }

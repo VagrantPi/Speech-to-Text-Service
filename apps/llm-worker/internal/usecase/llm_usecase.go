@@ -14,7 +14,7 @@ import (
 )
 
 type LLMUseCase interface {
-	ProcessTask(ctx context.Context, taskID uint) error
+	ProcessTask(ctx context.Context, taskID uint, transcript string) error
 }
 
 type llmUseCase struct {
@@ -46,21 +46,11 @@ func NewLLMUseCase(taskRepo repository.TaskRepo, llmRepo repository.LLMRepo, pub
 	}, nil
 }
 
-func (u *llmUseCase) ProcessTask(ctx context.Context, taskID uint) error {
+func (u *llmUseCase) ProcessTask(ctx context.Context, taskID uint, transcript string) error {
 	log := telemetry.WithTraceID(ctx, u.logger)
 	log.Info("ProcessTask: starting",
 		zap.Uint("task_id", taskID),
 	)
-
-	transcript, err := u.taskRepo.GetTranscript(ctx, taskID)
-	if err != nil {
-		log.Error("ProcessTask: failed to get transcript",
-			zap.Uint("task_id", taskID),
-			zap.Error(err),
-		)
-		u.failed.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "get_transcript_failed")))
-		return fmt.Errorf("failed to get transcript: %w", err)
-	}
 
 	tokenChan := make(chan string)
 

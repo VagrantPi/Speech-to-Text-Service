@@ -49,6 +49,21 @@ func main() {
 	}
 
 	r := gin.Default()
+
+	// CORS 中間件
+	r.Use(func(c *gin.Context) {
+		c.Header("Access-Control-Allow-Origin", "*")
+		c.Header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
+		c.Header("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		if c.Request.Method == "OPTIONS" {
+			c.AbortWithStatus(204)
+			return
+		}
+
+		c.Next()
+	})
+
 	r.Use(otelgin.Middleware(telemetryCfg.ServiceName))
 	r.Use(telemetry.LoggerMiddleware(logger))
 
@@ -65,7 +80,6 @@ func main() {
 		}
 		api.GET("/upload-url", taskHandler.HandleGetUploadURL)
 	}
-	r.POST("/uploads/uploads/audio/:s3key", taskHandler.HandleMockUpload)
 
 	srv := &http.Server{
 		Addr:    ":8080",

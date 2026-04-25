@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"log"
 
 	"gorm.io/gorm"
 	"speech.local/packages/db/models"
@@ -21,8 +22,9 @@ func (d *OutboxDAO) FetchPendingEvents(ctx context.Context, limit int) ([]*model
 		Where("status = ? AND retry_count < ?", "PENDING", 5).
 		Order("created_at ASC").
 		Limit(limit).
-		Find(&events).Error
-	return events, err
+		Find(&events)
+	log.Printf("[DEBUG] Fetched %d pending events", len(events))
+	return events, err.Error
 }
 
 func (d *OutboxDAO) MarkAsProcessed(ctx context.Context, id uint) error {
