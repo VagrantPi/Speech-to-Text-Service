@@ -2,6 +2,7 @@ package llm
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"strings"
 
@@ -20,10 +21,13 @@ type OpenAIStreamService struct {
 
 var _ LLMRepoInterface = (*OpenAIStreamService)(nil)
 
-func NewOpenAIStreamService(apiKey string) *OpenAIStreamService {
+func NewOpenAIStreamService(apiKey string) (*OpenAIStreamService, error) {
+	if apiKey == "" {
+		return nil, fmt.Errorf("OPENAI_API_KEY is required")
+	}
 	return &OpenAIStreamService{
 		client: openai.NewClient(apiKey),
-	}
+	}, nil
 }
 
 func (s *OpenAIStreamService) GenerateSummaryStream(ctx context.Context, transcript string, tokenChan chan<- string) (string, error) {

@@ -39,15 +39,13 @@ type taskUseCase struct {
 	storageRepo repository.StorageRepo
 	taskRepo    repository.TaskRepo
 	pubSubRepo  repository.PubSubRepo
-	debug       bool
 }
 
-func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo, pubSubRepo repository.PubSubRepo, debug bool) TaskUseCase {
+func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo, pubSubRepo repository.PubSubRepo) TaskUseCase {
 	return &taskUseCase{
 		storageRepo: storageRepo,
 		taskRepo:    taskRepo,
 		pubSubRepo:  pubSubRepo,
-		debug:       debug,
 	}
 }
 

@@ -2,9 +2,9 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
 
 	"gorm.io/gorm"
-	"speech.local/packages/db"
 	"speech.local/packages/db/models"
 )
 
@@ -21,21 +21,35 @@ func NewTaskRepo(dbConn *gorm.DB) TaskRepo {
 }
 
 func (r *taskRepoImpl) UpdateTranscript(ctx context.Context, taskID uint, transcript string) error {
-	_, err := db.ExecuteWithOutbox(
-		r.db,
-		1,
-		"llm-queue",
-		map[string]interface{}{"task_id": taskID, "transcript": transcript},
-		func(tx *gorm.DB) (uint, error) {
-			err := tx.WithContext(ctx).Model(&models.Task{}).Where("id = ?", taskID).Updates(map[string]interface{}{
-				"transcript": transcript,
-				"status":     "PROCESSING",
-			}).Error
-			if err != nil {
-				return 0, err
-			}
-			return taskID, nil
-		},
-	)
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&models.Task{}).Where("id = ? AND status = ?", taskID, "CREATED").Updates(map[string]interface{}{
+			"transcript": transcript,
+			"status":     "PROCESSING",
+		})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+
+		payload := map[string]interface{}{
+			"task_id":    taskID,
+			"transcript": transcript,
+		}
+		payloadBytes, err := json.Marshal(payload)
+		if err != nil {
+			return err
+		}
+
+		outboxEvent := &models.OutboxEvent{
+			AggregateTypeID: 1,
+			AggregateID:     taskID,
+			Topic:           "llm-queue",
+			Payload:         payloadBytes,
+			Status:          "PENDING",
+		}
+		return tx.Create(outboxEvent).Error
+	})
 	return err
 }

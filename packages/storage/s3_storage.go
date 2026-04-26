@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -123,33 +125,43 @@ func (s *S3Storage) GenerateUploadURL(ctx context.Context, objectKey, contentTyp
 }
 
 func (s *S3Storage) DownloadToTempFile(ctx context.Context, s3Key string) (string, error) {
-	file, err := os.CreateTemp("", "stt-audio-*.tmp")
+	// Use /tmp directly instead of os.CreateTemp
+	fileName := filepath.Join("/tmp", "stt-audio-"+s3Key[strings.LastIndex(s3Key, "/")+1:])
+	file, err := os.Create(fileName)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("Create file failed: %w", err)
 	}
-	defer func() {
-		if err != nil {
-			os.Remove(file.Name())
-		}
-	}()
+	defer file.Close()
 
 	resp, err := s.client.GetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(s3Key),
 	})
 	if err != nil {
-		return "", err
+		os.Remove(fileName)
+		return "", fmt.Errorf("GetObject failed: %w", err)
 	}
 	defer resp.Body.Close()
 
 	_, err = io.Copy(file, resp.Body)
 	if err != nil {
-		return "", err
+		os.Remove(fileName)
+		return "", fmt.Errorf("ioCopy failed: %w", err)
 	}
 
 	if err := file.Close(); err != nil {
-		return "", err
+		os.Remove(fileName)
+		return "", fmt.Errorf("file.Close failed: %w", err)
 	}
 
-	return file.Name(), nil
+	// Verify file exists before returning
+	if _, statErr := os.Stat(fileName); os.IsNotExist(statErr) {
+		return "", fmt.Errorf("file does not exist after download: %s", fileName)
+	}
+
+	return fileName, nil
+}
+
+func ioCopy(dst *os.File, src io.Reader) (written int64, err error) {
+	return io.Copy(dst, src)
 }

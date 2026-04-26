@@ -11,7 +11,7 @@ use (
 	./packages/llm
 	./packages/mq
 	./packages/redis
-	./packages/stt
 	./packages/storage
+	./packages/stt
 	./packages/telemetry
 )

@@ -91,10 +91,14 @@ func ProvideDB(cfg *config.AppConfig) (*gorm.DB, error) {
 }
 
 func NewLLMRepo(cfg *config.AppConfig) (llm.LLMRepoInterface, error) {
-	if cfg.Debug {
+	switch cfg.Env {
+	case config.EnvMock:
 		return llm.NewMockLLMService(), nil
+	case config.EnvLocal:
+		return llm.NewLocalLLMService(), nil
+	default:
+		return llm.NewOpenAIStreamService(cfg.OpenAIAPIKey)
 	}
-	return llm.NewOpenAIStreamService(cfg.OpenAIAPIKey), nil
 }
 
 func ProvideRedisClient(cfg *config.AppConfig) (*redis.RedisClient, error) {

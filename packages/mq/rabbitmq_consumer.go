@@ -54,7 +54,11 @@ func (c *RabbitMQConsumer) Consume(ctx context.Context, queueName string, handle
 			sem <- struct{}{}
 			go func(m amqp.Delivery) {
 				defer func() { <-sem }()
-				if err := handler(ctx, m.Body); err != nil {
+
+				msgCtx, cancel := context.WithCancel(ctx)
+				defer cancel()
+
+				if err := handler(msgCtx, m.Body); err != nil {
 					m.Nack(false, false)
 				} else {
 					m.Ack(false)

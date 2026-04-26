@@ -86,8 +86,8 @@ func ProvideRedisClient(cfg *config.AppConfig) (*redis.RedisClient, error) {
 	return redis.NewRedisClient(cfg.RedisConfig)
 }
 
-func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo, pubSubRepo repository.PubSubRepo, cfg *config.AppConfig) usecase.TaskUseCase {
-	return usecase.NewTaskUseCase(storageRepo, taskRepo, pubSubRepo, cfg.Debug)
+func NewTaskUseCase(storageRepo repository.StorageRepo, taskRepo repository.TaskRepo, pubSubRepo repository.PubSubRepo) usecase.TaskUseCase {
+	return usecase.NewTaskUseCase(storageRepo, taskRepo, pubSubRepo)
 }
 
 func NewLogger(cfg *config.AppConfig) (*zap.Logger, error) {

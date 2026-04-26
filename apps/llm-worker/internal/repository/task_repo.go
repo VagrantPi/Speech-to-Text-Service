@@ -5,6 +5,7 @@ import (
 
 	"gorm.io/gorm"
 	"speech.local/packages/db"
+	"speech.local/packages/db/models"
 )
 
 type TaskRepo interface {
@@ -30,12 +31,17 @@ func (r *taskRepoImpl) GetTranscript(ctx context.Context, taskID uint) (string, 
 }
 
 func (r *taskRepoImpl) UpdateSummary(ctx context.Context, taskID uint, summary string) error {
-	taskDAO := db.NewTaskDAO(r.db)
-	task, err := taskDAO.FindByID(ctx, taskID)
-	if err != nil {
-		return err
-	}
-	task.Summary = summary
-	task.Status = "COMPLETED"
-	return taskDAO.Update(ctx, task)
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&models.Task{}).Where("id = ? AND status = ?", taskID, "PROCESSING").Updates(map[string]interface{}{
+			"summary": summary,
+			"status":  "COMPLETED",
+		})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		return nil
+	})
 }

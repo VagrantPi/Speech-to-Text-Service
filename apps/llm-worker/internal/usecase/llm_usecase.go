@@ -52,7 +52,7 @@ func (u *llmUseCase) ProcessTask(ctx context.Context, taskID uint, transcript st
 		zap.Uint("task_id", taskID),
 	)
 
-	tokenChan := make(chan string)
+	tokenChan := make(chan string, 10)
 
 	go func() {
 		for token := range tokenChan {
@@ -72,9 +72,6 @@ func (u *llmUseCase) ProcessTask(ctx context.Context, taskID uint, transcript st
 		return fmt.Errorf("failed to generate summary: %w", err)
 	}
 
-	donePayload, _ := json.Marshal(map[string]string{"token": "[DONE]"})
-	_ = u.pubsubRepo.Publish(ctx, fmt.Sprintf("task:%d:stream", taskID), string(donePayload))
-
 	if err := u.taskRepo.UpdateSummary(ctx, taskID, fullSummary); err != nil {
 		log.Error("ProcessTask: failed to update summary",
 			zap.Uint("task_id", taskID),
@@ -83,6 +80,9 @@ func (u *llmUseCase) ProcessTask(ctx context.Context, taskID uint, transcript st
 		u.failed.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "update_summary_failed")))
 		return fmt.Errorf("failed to update summary: %w", err)
 	}
+
+	donePayload, _ := json.Marshal(map[string]string{"token": "[DONE]"})
+	_ = u.pubsubRepo.Publish(ctx, fmt.Sprintf("task:%d:stream", taskID), string(donePayload))
 
 	log.Info("ProcessTask: completed",
 		zap.Uint("task_id", taskID),

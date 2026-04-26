@@ -68,10 +68,14 @@ func NewS3Storage(cfg *config.AppConfig) (*storage.S3Storage, error) {
 }
 
 func NewSTTRepo(cfg *config.AppConfig) (stt.STTRepoInterface, error) {
-	if cfg.Debug {
+	switch cfg.Env {
+	case config.EnvMock:
 		return stt.NewMockSTTService(), nil
+	case config.EnvLocal:
+		return stt.NewLocalSTTService(""), nil
+	default:
+		return stt.NewOpenAISTTService(cfg.OpenAIAPIKey)
 	}
-	return stt.NewOpenAISTTService(cfg.OpenAIAPIKey), nil
 }
 
 func NewTaskRepo(db *gorm.DB) repository.TaskRepo {
@@ -79,7 +83,7 @@ func NewTaskRepo(db *gorm.DB) repository.TaskRepo {
 }
 
 func NewSTTUseCase(storageRepo repository.StorageRepo, sttRepo repository.STTRepo, taskRepo repository.TaskRepo, logger *zap.Logger, cfg *config.AppConfig) (usecase.STTUseCase, error) {
-	return usecase.NewSTTUseCase(storageRepo, sttRepo, taskRepo, logger, cfg.Debug)
+	return usecase.NewSTTUseCase(storageRepo, sttRepo, taskRepo, logger, cfg.Env)
 }
 
 func NewLogger(cfg *config.AppConfig) (*zap.Logger, error) {

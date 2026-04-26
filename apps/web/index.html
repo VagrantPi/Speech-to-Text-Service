@@ -99,19 +99,6 @@
           throw new Error('上傳 URL 或 S3 key 無效');
         }
 
-        // const isMock = upload_url.includes('mock=true');
-
-        // if (isMock) {
-        //   statusDiv.innerText = "Mock 模式：模擬上傳...";
-        //   const mockResp = await fetch(`${CONFIG.API_BASE}/mock/${encodeURIComponent(s3_key)}`, {
-        //     method: 'POST'
-        //   });
-        //   if (!mockResp.ok) {
-        //     throw new Error(`Mock 上傳失敗 (${mockResp.status})`);
-        //   }
-        //   const mockTask = await mockResp.json();
-        //   currentTaskId = mockTask.task_id;
-        // } else {
         // 2. 直傳 S3 (MinIO)
         statusDiv.innerText = "音訊直傳 S3 中 (Bypassing Server)...";
         const s3Resp = await fetch(upload_url, {

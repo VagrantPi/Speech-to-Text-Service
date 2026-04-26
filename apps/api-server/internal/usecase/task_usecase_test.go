@@ -183,7 +183,7 @@ func TestGetAudioUploadURL(t *testing.T) {
 			mockStorage := new(MockStorage)
 			mockTaskRepo := new(MockTaskRepository)
 			mockPubSub := new(MockPubSubRepo)
-			usecase := NewTaskUseCase(mockStorage, mockTaskRepo, mockPubSub, false)
+			usecase := NewTaskUseCase(mockStorage, mockTaskRepo, mockPubSub)
 
 			tt.setupMock(mockStorage)
 
