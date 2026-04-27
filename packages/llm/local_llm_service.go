@@ -7,14 +7,13 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
-	"time"
 )
 
 const (
 	defaultOllamaURL = "http://localhost:11434/api/chat"
 	defaultModel     = "qwen2.5:1.5b"
-	requestTimeout   = 30 * time.Second
 )
 
 type LocalLLMService struct {
@@ -26,20 +25,24 @@ type LocalLLMService struct {
 var _ LLMRepoInterface = (*LocalLLMService)(nil)
 
 func NewLocalLLMService() *LocalLLMService {
+	baseURL := os.Getenv("OLLAMA_API_URL")
+	model := os.Getenv("OLLAMA_MODEL")
+	if baseURL == "" {
+		baseURL = defaultOllamaURL
+	}
+	if model == "" {
+		model = defaultModel
+	}
 	return &LocalLLMService{
-		client: &http.Client{
-			Timeout: requestTimeout,
-		},
-		baseURL: defaultOllamaURL,
-		model:   defaultModel,
+		client: &http.Client{},
+		baseURL: baseURL,
+		model:   model,
 	}
 }
 
 func NewLocalLLMServiceWithConfig(baseURL, model string) *LocalLLMService {
 	return &LocalLLMService{
-		client: &http.Client{
-			Timeout: requestTimeout,
-		},
+		client: &http.Client{},
 		baseURL: baseURL,
 		model:   model,
 	}

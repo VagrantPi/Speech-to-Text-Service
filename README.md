@@ -80,6 +80,9 @@ AWS_SECRET_KEY=minioadmin
 AWS_ENDPOINT=http://localhost:9000
 AWS_PUBLIC_ENDPOINT=http://localhost:9000
 EXPIRATION_IN_MINUTES=15
+WHISPER_API_URL=http://localhost:9000/asr?task=transcribe&output=json
+OLLAMA_API_URL=http://localhost:11434/api/chat
+OLLAMA_MODEL=qwen2.5:1.5b
 ENV=local
 API_PORT=8080
 OTEL_SERVICE_NAME=api-server
@@ -457,6 +460,9 @@ cd apps/api-server && wire ./internal/di/
 | `AWS_ENDPOINT` | S3 Endpoint（MinIO） | `http://localhost:9001` |
 | `AWS_PUBLIC_ENDPOINT` | S3 公開端點（供 Pre-signed URL 使用） | `http://localhost:9001` |
 | `EXPIRATION_IN_MINUTES` | Pre-signed URL 效期（分鐘） | `15` |
+| `WHISPER_API_URL` | Whisper STT API 端點（本地模式） | `http://localhost:9010/asr?task=transcribe&output=json` |
+| `OLLAMA_API_URL` | Ollama LLM API 端點（本地模式） | `http://localhost:11434/api/chat` |
+| `OLLAMA_MODEL` | Ollama 模型名稱（本地模式） | `qwen2.5:1.5b` |
 | `OPENAI_API_KEY` | OpenAI API 金鑰 | **必填** |
 | `ENV` | 環境模式（`mock`=除錯模式，`local`=本地開發，`production`=正式環境） | `local` |
 | `API_PORT` | API Server 監聽埠號 | `8080` |

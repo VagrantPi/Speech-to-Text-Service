@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
-	"time"
 )
 
 type LocalSTTServiceConfig struct {
@@ -25,22 +24,19 @@ type LocalSTTService struct {
 var _ STTRepoInterface = (*LocalSTTService)(nil)
 
 func NewLocalSTTService(apiKey string) *LocalSTTService {
+	apiURL := os.Getenv("WHISPER_API_URL")
 	return NewLocalSTTServiceWithConfig(LocalSTTServiceConfig{
-		APIURL: "http://localhost:9010/asr?task=transcribe&output=json",
-		HTTPClient: &http.Client{
-			Timeout: 30 * time.Second,
-		},
+		APIURL:     apiURL,
+		HTTPClient: &http.Client{},
 	})
 }
 
 func NewLocalSTTServiceWithConfig(config LocalSTTServiceConfig) *LocalSTTService {
 	if config.APIURL == "" {
-		config.APIURL = "http://localhost:9010/asr?task=transcribe&output=json"
+		config.APIURL = "http://localhost:9000/asr?task=transcribe&output=json"
 	}
 	if config.HTTPClient == nil {
-		config.HTTPClient = &http.Client{
-			Timeout: 30 * time.Second,
-		}
+		config.HTTPClient = &http.Client{}
 	}
 	return &LocalSTTService{
 		config: config,
