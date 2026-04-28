@@ -39,11 +39,11 @@ func InitializeWorker() (*worker.LLMWorker, error) {
 		return nil, err
 	}
 	taskRepo := NewTaskRepo(db)
-	llmRepoInterface, err := NewLLMRepo(appConfig)
+	redisClient, err := ProvideRedisClient(appConfig)
 	if err != nil {
 		return nil, err
 	}
-	redisClient, err := ProvideRedisClient(appConfig)
+	llmRepoInterface, err := NewLLMRepo(appConfig, redisClient)
 	if err != nil {
 		return nil, err
 	}
@@ -90,14 +90,15 @@ func ProvideDB(cfg *config.AppConfig) (*gorm.DB, error) {
 	return gdb, nil
 }
 
-func NewLLMRepo(cfg *config.AppConfig) (llm.LLMRepoInterface, error) {
+func NewLLMRepo(cfg *config.AppConfig, redisClient *redis.RedisClient) (llm.LLMRepoInterface, error) {
 	switch cfg.Env {
 	case config.EnvMock:
 		return llm.NewMockLLMService(), nil
 	case config.EnvLocal:
 		return llm.NewLocalLLMService(), nil
 	default:
-		return llm.NewOpenAIStreamService(cfg.OpenAIAPIKey)
+		limiter := redisClient.GetLimiter()
+		return llm.NewOpenAIStreamServiceWithLimiter(cfg.OpenAIAPIKey, limiter, cfg.RateLimitLLMRPM)
 	}
 }
 

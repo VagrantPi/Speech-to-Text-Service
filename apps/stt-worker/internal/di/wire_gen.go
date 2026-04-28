@@ -18,6 +18,7 @@ import (
 	"speech.local/packages/config"
 	"speech.local/packages/db"
 	"speech.local/packages/mq"
+	"speech.local/packages/redis"
 	"speech.local/packages/storage"
 	"speech.local/packages/stt"
 	"speech.local/packages/telemetry"
@@ -38,7 +39,11 @@ func InitializeWorker() (*worker.STTWorker, error) {
 	if err != nil {
 		return nil, err
 	}
-	sttRepoInterface, err := NewSTTRepo(appConfig)
+	redisClient, err := NewRedisClient(appConfig)
+	if err != nil {
+		return nil, err
+	}
+	sttRepoInterface, err := NewSTTRepo(appConfig, redisClient)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +70,8 @@ var ProviderSet = wire.NewSet(
 	NewAppConfig,
 	ProvideDB,
 
-	NewS3Storage, wire.Bind(new(repository.StorageRepo), new(*storage.S3Storage)), NewSTTRepo, wire.Bind(new(repository.STTRepo), new(stt.STTRepoInterface)), NewTaskRepo,
+	NewS3Storage, wire.Bind(new(repository.StorageRepo), new(*storage.S3Storage)), NewRedisClient,
+	NewSTTRepo, wire.Bind(new(repository.STTRepo), new(stt.STTRepoInterface)), NewTaskRepo,
 
 	NewLogger,
 	NewSTTUseCase,
@@ -96,14 +102,19 @@ func NewS3Storage(cfg *config.AppConfig) (*storage.S3Storage, error) {
 	return storage.NewS3Storage(cfg.S3Config)
 }
 
-func NewSTTRepo(cfg *config.AppConfig) (stt.STTRepoInterface, error) {
+func NewRedisClient(cfg *config.AppConfig) (*redis.RedisClient, error) {
+	return redis.NewRedisClient(cfg.RedisConfig)
+}
+
+func NewSTTRepo(cfg *config.AppConfig, redisClient *redis.RedisClient) (stt.STTRepoInterface, error) {
 	switch cfg.Env {
 	case config.EnvMock:
 		return stt.NewMockSTTService(), nil
 	case config.EnvLocal:
 		return stt.NewLocalSTTService(""), nil
 	default:
-		return stt.NewOpenAISTTService(cfg.OpenAIAPIKey)
+		limiter := redisClient.GetLimiter()
+		return stt.NewOpenAISTTServiceWithLimiter(cfg.OpenAIAPIKey, limiter, cfg.RateLimitSTTRPM)
 	}
 }
 

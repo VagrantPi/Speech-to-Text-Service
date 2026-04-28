@@ -37,6 +37,8 @@ func LoadConfig(configStruct interface{}) error {
 	addEnvToViper("REDIS_PASSWORD", "REDIS_PASSWORD")
 	addEnvToViper("MQ_URL", "MQ_URL")
 	addEnvToViper("MQ_PREFETCH_COUNT", "MQ_PREFETCH_COUNT")
+	addEnvToViper("RATE_LIMIT_STT_RPM", "RATE_LIMIT_STT_RPM")
+	addEnvToViper("RATE_LIMIT_LLM_RPM", "RATE_LIMIT_LLM_RPM")
 	addEnvToViper("AWS_REGION", "AWS_REGION")
 	addEnvToViper("AWS_S3_BUCKET", "AWS_S3_BUCKET")
 	addEnvToViper("AWS_ACCESS_KEY", "AWS_ACCESS_KEY")
@@ -76,6 +78,9 @@ type AppConfig struct {
 
 	PrefetchCount int `mapstructure:"MQ_PREFETCH_COUNT"`
 
+	RateLimitSTTRPM int `mapstructure:"RATE_LIMIT_STT_RPM"`
+	RateLimitLLMRPM int `mapstructure:"RATE_LIMIT_LLM_RPM"`
+
 	AWSRegion           string `mapstructure:"AWS_REGION"`
 	AWSS3Bucket         string `mapstructure:"AWS_S3_BUCKET"`
 	AWSAccessKey        string `mapstructure:"AWS_ACCESS_KEY"`
@@ -102,6 +107,12 @@ func NewAppConfig() (*AppConfig, error) {
 	}
 	if cfg.PrefetchCount == 0 {
 		cfg.PrefetchCount = 1
+	}
+	if cfg.RateLimitSTTRPM == 0 {
+		cfg.RateLimitSTTRPM = 50
+	}
+	if cfg.RateLimitLLMRPM == 0 {
+		cfg.RateLimitLLMRPM = 500
 	}
 	return &cfg, nil
 }

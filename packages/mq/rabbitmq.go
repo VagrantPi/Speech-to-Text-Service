@@ -2,13 +2,21 @@ package mq
 
 import (
 	"context"
+	"errors"
+	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
 
+var ErrRateLimited = errors.New("rate limited")
+
 type AMQPInterface interface {
 	Dial(url string) (*amqp.Connection, error)
 	Channel(*amqp.Connection) (*amqp.Channel, error)
+}
+
+type RateLimitedError interface {
+	IsRateLimited() bool
 }
 
 type RealAMQP struct{}
@@ -80,13 +88,26 @@ func (c *RabbitMQConsumer) Consume(ctx context.Context, queueName string, handle
 				defer cancel()
 
 				if err := handler(msgCtx, m.Body); err != nil {
-					m.Nack(false, false)
+					if isRateLimitedError(err) {
+						log.Printf("Rate limited, nacking message for retry")
+						m.Nack(false, false)
+					} else {
+						m.Nack(false, false)
+					}
 				} else {
 					m.Ack(false)
 				}
 			}(msg)
 		}
 	}
+}
+
+func isRateLimitedError(err error) bool {
+	var rle RateLimitedError
+	if errors.As(err, &rle) {
+		return rle.IsRateLimited()
+	}
+	return errors.Is(err, ErrRateLimited)
 }
 
 func (c *RabbitMQConsumer) Close() error {

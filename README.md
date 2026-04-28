@@ -76,6 +76,8 @@ DB_SSLMODE=disable
 REDIS_HOST=localhost:6379
 MQ_URL=amqp://guest:guest@localhost:5672/
 MQ_PREFETCH_COUNT=10
+RATE_LIMIT_STT_RPM=50
+RATE_LIMIT_LLM_RPM=500
 AWS_REGION=us-east-1
 AWS_S3_BUCKET=uploads
 AWS_ACCESS_KEY=minioadmin
@@ -479,6 +481,8 @@ cd apps/api-server && wire ./internal/di/
 | `REDIS_PASSWORD` | Redis 密碼 | （空） |
 | `MQ_URL` | RabbitMQ AMQP URL | `amqp://guest:guest@localhost:5672/` |
 | `MQ_PREFETCH_COUNT` | RabbitMQ QoS prefetch count，限制單 Worker 同時處理任務數 | `10` |
+| `RATE_LIMIT_STT_RPM` | STT (Whisper) 每分鐘最大請求數 | `50` |
+| `RATE_LIMIT_LLM_RPM` | LLM (GPT-4o) 每分鐘最大請求數 | `500` |
 | `AWS_REGION` | S3 Region | `us-east-1` |
 | `AWS_S3_BUCKET` | S3 Bucket 名稱 | `uploads` |
 | `AWS_ACCESS_KEY` | S3 Access Key | `minioadmin` |
