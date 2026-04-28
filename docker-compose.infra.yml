@@ -89,7 +89,7 @@ services:
     image: onerahmet/openai-whisper-asr-webservice
     container_name: whisper_api
     ports:
-      - "9010:9010"
+      - "9010:9000"
     environment:
       - ASR_MODEL=tiny # 這裡可以視硬體隨時改為 base 或 small
     restart: unless-stopped
