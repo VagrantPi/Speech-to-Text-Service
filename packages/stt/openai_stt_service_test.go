@@ -60,3 +60,51 @@ func TestRateLimitedError_IsRateLimited(t *testing.T) {
 	assert.True(t, err.IsRateLimited())
 	assert.Equal(t, "rate limited", err.Error())
 }
+
+func TestParseTranscriptionResponse(t *testing.T) {
+	svc := &OpenAISTTService{}
+
+	tests := []struct {
+		name     string
+		body    string
+		want    string
+		wantErr bool
+	}{
+		{
+			name:     "valid response",
+			body:     `{"text": "Hello world"}`,
+			want:    "Hello world",
+			wantErr: false,
+		},
+		{
+			name:     "empty text",
+			body:     `{"text": ""}`,
+			want:    "",
+			wantErr: false,
+		},
+		{
+			name:     "invalid json",
+			body:     `{invalid}`,
+			want:    "",
+			wantErr: true,
+		},
+		{
+			name:     "missing text field",
+			body:     `{}`,
+			want:    "",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := svc.parseTranscriptionResponse([]byte(tt.body))
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.want, got)
+			}
+		})
+	}
+}

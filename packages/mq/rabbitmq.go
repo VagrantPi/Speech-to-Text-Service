@@ -6,6 +6,7 @@ import (
 	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
+	perrors "speech.local/packages/errors"
 )
 
 var ErrRateLimited = errors.New("rate limited")
@@ -106,6 +107,9 @@ func isRateLimitedError(err error) bool {
 	var rle RateLimitedError
 	if errors.As(err, &rle) {
 		return rle.IsRateLimited()
+	}
+	if errors.Is(err, perrors.ErrThirdPartyRateLimited) {
+		return true
 	}
 	return errors.Is(err, ErrRateLimited)
 }
