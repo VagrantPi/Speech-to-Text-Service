@@ -6,10 +6,14 @@
 # Start local infrastructure
 docker-compose up -d
 
-# Run api-server
-cd apps/api-server && go run cmd/main.go
+# Build (per-module due to go.work)
+go build ./apps/api-server/... ./apps/stt-worker/... ./apps/outbox-relay/...
 
-# Run tests (per-module, not from root due to go.work)
+# Run apps
+cd apps/api-server && go run cmd/main.go
+cd apps/outbox-relay && go run cmd/main.go
+
+# Test
 cd apps/api-server && go test ./...
 cd apps/outbox-relay && go test ./...
 ```
@@ -51,6 +55,11 @@ Infrastructure: Postgres (:5432), Redis (:6379), RabbitMQ (:5672), MinIO (:9000/
 - Interfaces in `repository/` package, implementations in packages
 - Use Wire skill (`go-wire-arch`) when adding repositories/usecases/handlers
 - Use TDD skill (`go-tdd`) for test-driven development
+- GORM clause import: use `"gorm.io/gorm/clause"` (NOT `"gorm.io/clause"`)
+
+## Outbox Relay Concurrency
+
+`outbox-relay` uses `SELECT ... FOR UPDATE SKIP LOCKED` for safe multi-instance polling. Key method: `FetchAndProcess` — wraps fetch + publish + mark-as-processed in a single DB transaction. On publish failure, transaction rolls back and rows are released for other instances to pick up. Do NOT use two-phase fetch-then-update in outbox-relay — it causes duplicate messages.
 
 ## Skills
 

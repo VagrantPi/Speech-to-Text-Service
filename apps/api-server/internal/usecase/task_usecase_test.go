@@ -209,7 +209,113 @@ func TestGetAudioUploadURL(t *testing.T) {
 	}
 }
 
-func TestTaskUseCase_ConfirmTask(t *testing.T) {
+func TestGetTaskDetail(t *testing.T) {
+	tests := []struct {
+		name       string
+		taskID     uint
+		mockTask   *models.Task
+		mockErr    error
+		wantTask   *models.Task
+		wantErr    error
+		setupMock  func(*MockTaskRepository)
+	}{
+		{
+			name:     "success",
+			taskID:   123,
+			mockTask: &models.Task{ID: 123, Status: "COMPLETED", S3Key: "test.mp3"},
+			setupMock: func(m *MockTaskRepository) {
+				m.On("GetByID", mock.Anything, uint(123)).Return(&models.Task{ID: 123, Status: "COMPLETED", S3Key: "test.mp3"}, nil)
+			},
+			wantTask: &models.Task{ID: 123, Status: "COMPLETED", S3Key: "test.mp3"},
+		},
+		{
+			name:    "not found",
+			taskID:  999,
+			mockErr: errors.New("record not found"),
+			setupMock: func(m *MockTaskRepository) {
+				m.On("GetByID", mock.Anything, uint(999)).Return(nil, errors.New("record not found"))
+			},
+			wantErr: errors.New("record not found"),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockRepo := new(MockTaskRepository)
+			tt.setupMock(mockRepo)
+
+			uc := &taskUseCase{taskRepo: mockRepo}
+
+			task, err := uc.GetTaskDetail(context.Background(), tt.taskID)
+
+			if tt.wantErr != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.Equal(t, tt.wantTask.ID, task.ID)
+				assert.Equal(t, tt.wantTask.Status, task.Status)
+			}
+			mockRepo.AssertExpectations(t)
+		})
+	}
+}
+
+func TestStreamTaskSummary(t *testing.T) {
+	ch := make(chan string, 1)
+	closeFunc := func() error { return nil }
+
+	tests := []struct {
+		name          string
+		taskID        uint
+		expectedChan  <-chan string
+		expectedClose func() error
+		expectedError error
+		setupMock     func(*MockPubSubRepo)
+	}{
+		{
+			name:   "success",
+			taskID: 123,
+			setupMock: func(m *MockPubSubRepo) {
+				m.On("Subscribe", mock.Anything, "task:123:stream").
+					Return((<-chan string)(ch), closeFunc, nil)
+			},
+			expectedChan:  ch,
+			expectedClose: closeFunc,
+		},
+		{
+			name:          "subscribe error",
+			taskID:        456,
+			expectedError: errors.New("redis error"),
+			setupMock: func(m *MockPubSubRepo) {
+				var nilCh <-chan string
+				m.On("Subscribe", mock.Anything, "task:456:stream").
+					Return(nilCh, func() error { return nil }, errors.New("redis error"))
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockPubSub := new(MockPubSubRepo)
+			tt.setupMock(mockPubSub)
+
+			uc := &taskUseCase{pubSubRepo: mockPubSub}
+
+			resultCh, resultClose, err := uc.StreamTaskSummary(context.Background(), tt.taskID)
+
+			if tt.expectedError != nil {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.NotNil(t, resultCh)
+				assert.NotNil(t, resultClose)
+			}
+			mockPubSub.AssertExpectations(t)
+		})
+	}
+}
+
+func TestConfirmTask(t *testing.T) {
 	tests := []struct {
 		name       string
 		s3Key      string
@@ -223,7 +329,7 @@ func TestTaskUseCase_ConfirmTask(t *testing.T) {
 			name:      "empty s3Key returns ErrInvalidS3Key",
 			s3Key:     "",
 			wantErr:   ErrInvalidS3Key,
-			setupMock: func(_ *MockTaskRepository) {}, // no call expected
+			setupMock: func(_ *MockTaskRepository) {},
 		},
 		{
 			name:       "valid s3Key calls repository and returns taskID",

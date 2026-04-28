@@ -3,14 +3,16 @@ package repository
 import (
 	"context"
 
+	"gorm.io/gorm"
+	"speech.local/packages/db"
 	"speech.local/packages/db/models"
 )
 
 type OutboxRepo interface {
-	// 撈取待處理事件
 	FetchPendingEvents(ctx context.Context, limit int) ([]*models.OutboxEvent, error)
-	// 標記為已處理
 	MarkAsProcessed(ctx context.Context, id uint) error
-	// 標記為失敗並增加重試計數
 	MarkAsFailed(ctx context.Context, id uint, errReason string) error
+	FetchAndProcess(ctx context.Context, limit int, fn db.ProcessFunc) (int, error)
+	MarkAsProcessedTx(ctx context.Context, tx *gorm.DB, ids []uint) error
+	MarkAsFailedTx(ctx context.Context, tx *gorm.DB, id uint, errReason string) error
 }
