@@ -36,6 +36,7 @@ func LoadConfig(configStruct interface{}) error {
 	addEnvToViper("REDIS_HOST", "REDIS_HOST")
 	addEnvToViper("REDIS_PASSWORD", "REDIS_PASSWORD")
 	addEnvToViper("MQ_URL", "MQ_URL")
+	addEnvToViper("MQ_PREFETCH_COUNT", "MQ_PREFETCH_COUNT")
 	addEnvToViper("AWS_REGION", "AWS_REGION")
 	addEnvToViper("AWS_S3_BUCKET", "AWS_S3_BUCKET")
 	addEnvToViper("AWS_ACCESS_KEY", "AWS_ACCESS_KEY")
@@ -73,6 +74,8 @@ type AppConfig struct {
 	APIPort string `mapstructure:"API_PORT"`
 	MQURL   string `mapstructure:"MQ_URL"`
 
+	PrefetchCount int `mapstructure:"MQ_PREFETCH_COUNT"`
+
 	AWSRegion           string `mapstructure:"AWS_REGION"`
 	AWSS3Bucket         string `mapstructure:"AWS_S3_BUCKET"`
 	AWSAccessKey        string `mapstructure:"AWS_ACCESS_KEY"`
@@ -90,13 +93,15 @@ type AppConfig struct {
 	TelemetryConfig telemetry.Config `mapstructure:",squash"`
 }
 
-// NewAppConfig 是一個 Provider，供 Wire 依賴注入使用
 func NewAppConfig() (*AppConfig, error) {
 	var cfg AppConfig
 
 	err := LoadConfig(&cfg)
 	if err != nil {
 		return nil, err
+	}
+	if cfg.PrefetchCount == 0 {
+		cfg.PrefetchCount = 1
 	}
 	return &cfg, nil
 }

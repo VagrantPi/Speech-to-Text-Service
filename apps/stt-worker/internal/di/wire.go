@@ -91,7 +91,7 @@ func NewLogger(cfg *config.AppConfig) (*zap.Logger, error) {
 }
 
 func ProvideRabbitMQConsumer(cfg *config.AppConfig) (*mq.RabbitMQConsumer, error) {
-	return mq.NewRabbitMQConsumer(cfg.MQURL)
+	return mq.NewRabbitMQConsumerWithAMQPAndPrefetch(cfg.MQURL, cfg.PrefetchCount, &mq.RealAMQP{})
 }
 
 func InitializeWorker() (*worker.STTWorker, error) {

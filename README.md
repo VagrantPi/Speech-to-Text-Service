@@ -75,6 +75,7 @@ DB_NAME=speech_db
 DB_SSLMODE=disable
 REDIS_HOST=localhost:6379
 MQ_URL=amqp://guest:guest@localhost:5672/
+MQ_PREFETCH_COUNT=10
 AWS_REGION=us-east-1
 AWS_S3_BUCKET=uploads
 AWS_ACCESS_KEY=minioadmin
@@ -477,6 +478,7 @@ cd apps/api-server && wire ./internal/di/
 | `REDIS_HOST` | Redis 位址 | `localhost:6379` |
 | `REDIS_PASSWORD` | Redis 密碼 | （空） |
 | `MQ_URL` | RabbitMQ AMQP URL | `amqp://guest:guest@localhost:5672/` |
+| `MQ_PREFETCH_COUNT` | RabbitMQ QoS prefetch count，限制單 Worker 同時處理任務數 | `10` |
 | `AWS_REGION` | S3 Region | `us-east-1` |
 | `AWS_S3_BUCKET` | S3 Bucket 名稱 | `uploads` |
 | `AWS_ACCESS_KEY` | S3 Access Key | `minioadmin` |

@@ -32,6 +32,10 @@ func NewRabbitMQConsumer(url string) (*RabbitMQConsumer, error) {
 }
 
 func NewRabbitMQConsumerWithAMQP(url string, amqpClient AMQPInterface) (*RabbitMQConsumer, error) {
+	return NewRabbitMQConsumerWithAMQPAndPrefetch(url, 1, amqpClient)
+}
+
+func NewRabbitMQConsumerWithAMQPAndPrefetch(url string, prefetchCount int, amqpClient AMQPInterface) (*RabbitMQConsumer, error) {
 	conn, err := amqpClient.Dial(url)
 	if err != nil {
 		return nil, err
@@ -39,6 +43,12 @@ func NewRabbitMQConsumerWithAMQP(url string, amqpClient AMQPInterface) (*RabbitM
 
 	ch, err := amqpClient.Channel(conn)
 	if err != nil {
+		conn.Close()
+		return nil, err
+	}
+
+	if err := ch.Qos(prefetchCount, 0, false); err != nil {
+		ch.Close()
 		conn.Close()
 		return nil, err
 	}
@@ -60,17 +70,12 @@ func (c *RabbitMQConsumer) Consume(ctx context.Context, queueName string, handle
 		return err
 	}
 
-	sem := make(chan struct{}, 10)
-
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case msg := <-msgs:
-			sem <- struct{}{}
 			go func(m amqp.Delivery) {
-				defer func() { <-sem }()
-
 				msgCtx, cancel := context.WithCancel(ctx)
 				defer cancel()
 
