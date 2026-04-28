@@ -74,6 +74,11 @@ services:
       MQ_URL: amqp://guest:guest@rabbitmq:5672/
       REDIS_HOST: redis:6379
       AWS_ENDPOINT: http://minio:9000
+      AWS_REGION: us-east-1
+      AWS_ACCESS_KEY: minioadmin
+      AWS_SECRET_KEY: minioadmin
+      AWS_S3_BUCKET: uploads
+      WHISPER_API_URL: http://whisper-asr:9000/asr?task=transcribe&output=json
     networks:
       - speech-network
 
@@ -98,6 +103,7 @@ services:
       MQ_URL: amqp://guest:guest@rabbitmq:5672/
       REDIS_HOST: redis:6379
       AWS_ENDPOINT: http://minio:9000
+      OLLAMA_API_URL: http://ollama:11434/api/chat
     networks:
       - speech-network
 

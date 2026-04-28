@@ -1,4 +1,8 @@
 services:
+
+  ######################
+  #  Database Services
+  ######################
   postgres:
     image: postgres:15-alpine
     container_name: speech_postgres
@@ -11,13 +15,16 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U root -d speech_db"]
+      test: [ "CMD-SHELL", "pg_isready -U root -d speech_db" ]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - speech-network
 
+  ######################
+  #  Message Queue Services
+  ######################
   rabbitmq:
     image: rabbitmq:3-management-alpine
     container_name: speech_rabbitmq
@@ -35,19 +42,25 @@ services:
     networks:
       - speech-network
 
+  ######################
+  #  Cache Services
+  ######################
   redis:
     image: redis:7-alpine
     container_name: speech_redis
     ports:
       - "6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 5s
       timeout: 3s
       retries: 5
     networks:
       - speech-network
 
+  ######################
+  #  Storage Services
+  ######################
   minio:
     image: minio/minio
     container_name: speech_minio
@@ -61,16 +74,59 @@ services:
     volumes:
       - miniodata:/data
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      test: [ "CMD", "curl", "-f", "http://localhost:9000/minio/health/live" ]
       interval: 5s
       timeout: 5s
       retries: 5
     networks:
       - speech-network
 
+  ######################
+  #  AI Services
+  ######################
+  # 1. 語音轉文字服務 (Whisper STT)
+  whisper-asr:
+    image: onerahmet/openai-whisper-asr-webservice
+    container_name: whisper_api
+    ports:
+      - "9010:9010"
+    environment:
+      - ASR_MODEL=tiny # 這裡可以視硬體隨時改為 base 或 small
+    restart: unless-stopped
+    networks:
+      - speech-network
+
+  # 2. 大型語言模型主服務 (Ollama LLM)
+  ollama:
+    image: ollama/ollama
+    container_name: ollama_api
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+    networks:
+      - speech-network
+
+  # 3. 自動初始化腳本 (確保一鍵建置)
+  # 這個容器依賴於 ollama 服務，啟動後會透過 API 自動下載模型，下載完畢即會功成身退自動關閉。
+  ollama-init:
+    image: ollama/ollama
+    container_name: ollama_init
+    depends_on:
+      - ollama
+    environment:
+      # 指向同一組 network 中的 ollama 容器
+      - OLLAMA_HOST=ollama
+    # 預設幫你拉取 qwen2.5:1.5b，你也可以改成 llama3.2:1b
+    command: pull qwen2.5:1.5b
+    networks:
+      - speech-network
+
 volumes:
   pgdata:
   miniodata:
+  ollama_data:
 
 networks:
   speech-network:

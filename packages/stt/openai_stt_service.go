@@ -2,6 +2,7 @@ package stt
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/sashabaranov/go-openai"
 )
@@ -16,10 +17,13 @@ type OpenAISTTService struct {
 
 var _ STTRepoInterface = (*OpenAISTTService)(nil)
 
-func NewOpenAISTTService(apiKey string) *OpenAISTTService {
+func NewOpenAISTTService(apiKey string) (*OpenAISTTService, error) {
+	if apiKey == "" {
+		return nil, fmt.Errorf("OPENAI_API_KEY is required")
+	}
 	return &OpenAISTTService{
 		client: openai.NewClient(apiKey),
-	}
+	}, nil
 }
 
 func (s *OpenAISTTService) Transcribe(ctx context.Context, localFilePath string) (string, error) {

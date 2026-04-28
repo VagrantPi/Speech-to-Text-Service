@@ -6,8 +6,10 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.uber.org/zap"
+	"gorm.io/gorm"
 
 	"speech.local/apps/outbox-relay/internal/repository"
+	"speech.local/packages/db/models"
 	"speech.local/packages/telemetry"
 )
 
@@ -55,44 +57,38 @@ func (s *relayService) ProcessBatch(ctx context.Context, batchSize int) (int, er
 		zap.Int("batch_size", batchSize),
 	)
 
-	events, err := s.repo.FetchPendingEvents(ctx, batchSize)
-	if err != nil {
-		return 0, err
-	}
-
-	if len(events) == 0 {
-		return 0, nil
-	}
-
 	processedCount := 0
 	publishFailed := 0
 	deleteFailed := 0
 
-	for _, event := range events {
-		if err := s.publisher.Publish(ctx, event.Topic, event.Payload); err != nil {
-			log.Warn("ProcessBatch: publish failed",
-				zap.Uint("event_id", event.ID),
-				zap.String("topic", event.Topic),
-				zap.Error(err),
-			)
-			s.failed.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "publish_failed")))
-			publishFailed++
-			continue
-		}
+	_, err := s.repo.FetchAndProcess(ctx, batchSize, func(txCtx context.Context, tx *gorm.DB, events []*models.OutboxEvent) error {
+		for _, event := range events {
+			if err := s.publisher.Publish(txCtx, event.Topic, event.Payload); err != nil {
+				log.Warn("ProcessBatch: publish failed",
+					zap.Uint("event_id", event.ID),
+					zap.String("topic", event.Topic),
+					zap.Error(err),
+				)
+				s.failed.Add(txCtx, 1, metric.WithAttributes(attribute.String("status", "publish_failed")))
+				publishFailed++
+				continue
+			}
 
-		if err := s.repo.MarkAsProcessed(ctx, event.ID); err != nil {
-			log.Warn("ProcessBatch: delete failed",
-				zap.Uint("event_id", event.ID),
-				zap.Error(err),
-			)
-			s.failed.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "delete_failed")))
-			deleteFailed++
-			continue
-		}
+			if err := s.repo.MarkAsProcessedTx(txCtx, tx, []uint{event.ID}); err != nil {
+				log.Warn("ProcessBatch: mark as processed failed",
+					zap.Uint("event_id", event.ID),
+					zap.Error(err),
+				)
+				s.failed.Add(txCtx, 1, metric.WithAttributes(attribute.String("status", "delete_failed")))
+				deleteFailed++
+				continue
+			}
 
-		processedCount++
-		s.processed.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "success")))
-	}
+			processedCount++
+			s.processed.Add(txCtx, 1, metric.WithAttributes(attribute.String("status", "success")))
+		}
+		return nil
+	})
 
 	log.Info("ProcessBatch: finished",
 		zap.Int("processed_count", processedCount),
@@ -100,34 +96,33 @@ func (s *relayService) ProcessBatch(ctx context.Context, batchSize int) (int, er
 		zap.Int("delete_failed", deleteFailed),
 	)
 
-	return processedCount, nil
+	return processedCount, err
 }
 
 func (s *relayService) PollAndRelay(ctx context.Context) error {
 	log := telemetry.WithTraceID(ctx, s.logger)
 
-	events, err := s.repo.FetchPendingEvents(ctx, 50)
+	_, err := s.repo.FetchAndProcess(ctx, 50, func(txCtx context.Context, tx *gorm.DB, events []*models.OutboxEvent) error {
+		for _, event := range events {
+			log.Info("Processing event", zap.Uint("id", event.ID), zap.String("topic", event.Topic))
+			if err := s.publisher.Publish(txCtx, event.Topic, event.Payload); err != nil {
+				s.failed.Add(txCtx, 1, metric.WithAttributes(attribute.String("status", "publish_failed")))
+				return err
+			}
+			if err := s.repo.MarkAsProcessedTx(txCtx, tx, []uint{event.ID}); err != nil {
+				log.Warn("PollAndRelay: failed to mark as processed",
+					zap.Uint("event_id", event.ID),
+					zap.Error(err),
+				)
+				return err
+			}
+			s.processed.Add(txCtx, 1, metric.WithAttributes(attribute.String("status", "success")))
+		}
+		return nil
+	})
+
 	if err != nil {
-		return err
-	}
-
-	for _, event := range events {
-		err := s.publisher.Publish(ctx, event.Topic, event.Payload)
-		if err != nil {
-			s.failed.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "publish_failed")))
-			s.repo.MarkAsFailed(ctx, event.ID, err.Error())
-			continue
-		}
-
-		err = s.repo.MarkAsProcessed(ctx, event.ID)
-		if err != nil {
-			log.Error("PollAndRelay: failed to mark as processed",
-				zap.Uint("event_id", event.ID),
-				zap.Error(err),
-			)
-			return err
-		}
-		s.processed.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "success")))
+		log.Error("PollAndRelay: batch failed, rolling back", zap.Error(err))
 	}
 	return nil
 }

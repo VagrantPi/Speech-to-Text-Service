@@ -11,7 +11,43 @@ env:
   TAG: ${{ github.sha }}
 
 jobs:
-  test:
+  test-packages:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Go
+      uses: actions/setup-go@v4
+      with:
+        go-version: '1.26.2'
+
+    - name: Cache Go modules
+      uses: actions/cache@v3
+      with:
+        path: |
+          ~/.cache/go-build
+          ~/go/pkg/mod
+        key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Download dependencies
+      run: go mod download
+
+    - name: Run unit tests for packages
+      run: |
+        for pkg in packages/*; do
+          if [ -d "$pkg" ]; then
+            echo "🧪 Running unit tests for $pkg..."
+            cd $pkg
+            go test -v -race ./... || true
+            cd ../..
+          fi
+        done
+
+  test-apps:
     runs-on: ubuntu-latest
     
     strategy:
@@ -47,7 +83,7 @@ jobs:
         go test -v -race ./... || true  # 允許測試失敗，繼續其他服務
 
   build:
-    needs: test
+    needs: [test-packages, test-apps]
     runs-on: ubuntu-latest
     if: github.event_name == 'push'
     

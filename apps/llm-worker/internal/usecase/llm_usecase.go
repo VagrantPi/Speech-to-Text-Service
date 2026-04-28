@@ -14,7 +14,7 @@ import (
 )
 
 type LLMUseCase interface {
-	ProcessTask(ctx context.Context, taskID uint) error
+	ProcessTask(ctx context.Context, taskID uint, transcript string) error
 }
 
 type llmUseCase struct {
@@ -46,23 +46,13 @@ func NewLLMUseCase(taskRepo repository.TaskRepo, llmRepo repository.LLMRepo, pub
 	}, nil
 }
 
-func (u *llmUseCase) ProcessTask(ctx context.Context, taskID uint) error {
+func (u *llmUseCase) ProcessTask(ctx context.Context, taskID uint, transcript string) error {
 	log := telemetry.WithTraceID(ctx, u.logger)
 	log.Info("ProcessTask: starting",
 		zap.Uint("task_id", taskID),
 	)
 
-	transcript, err := u.taskRepo.GetTranscript(ctx, taskID)
-	if err != nil {
-		log.Error("ProcessTask: failed to get transcript",
-			zap.Uint("task_id", taskID),
-			zap.Error(err),
-		)
-		u.failed.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "get_transcript_failed")))
-		return fmt.Errorf("failed to get transcript: %w", err)
-	}
-
-	tokenChan := make(chan string)
+	tokenChan := make(chan string, 10)
 
 	go func() {
 		for token := range tokenChan {
@@ -82,9 +72,6 @@ func (u *llmUseCase) ProcessTask(ctx context.Context, taskID uint) error {
 		return fmt.Errorf("failed to generate summary: %w", err)
 	}
 
-	donePayload, _ := json.Marshal(map[string]string{"token": "[DONE]"})
-	_ = u.pubsubRepo.Publish(ctx, fmt.Sprintf("task:%d:stream", taskID), string(donePayload))
-
 	if err := u.taskRepo.UpdateSummary(ctx, taskID, fullSummary); err != nil {
 		log.Error("ProcessTask: failed to update summary",
 			zap.Uint("task_id", taskID),
@@ -93,6 +80,9 @@ func (u *llmUseCase) ProcessTask(ctx context.Context, taskID uint) error {
 		u.failed.Add(ctx, 1, metric.WithAttributes(attribute.String("status", "update_summary_failed")))
 		return fmt.Errorf("failed to update summary: %w", err)
 	}
+
+	donePayload, _ := json.Marshal(map[string]string{"token": "[DONE]"})
+	_ = u.pubsubRepo.Publish(ctx, fmt.Sprintf("task:%d:stream", taskID), string(donePayload))
 
 	log.Info("ProcessTask: completed",
 		zap.Uint("task_id", taskID),

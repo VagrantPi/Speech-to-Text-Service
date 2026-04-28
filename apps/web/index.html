@@ -66,7 +66,7 @@
 
   <script>
     const CONFIG = {
-      API_BASE: '/api'
+      API_BASE: 'http://localhost:8080/api'
     };
 
     let currentTaskId = null;
@@ -99,46 +99,33 @@
           throw new Error('上傳 URL 或 S3 key 無效');
         }
 
-        const isMock = upload_url.includes('mock=true');
+        // 2. 直傳 S3 (MinIO)
+        statusDiv.innerText = "音訊直傳 S3 中 (Bypassing Server)...";
+        const s3Resp = await fetch(upload_url, {
+          method: 'PUT',
+          body: file,
+          headers: { 'Content-Type': file.type }
+        });
 
-        if (isMock) {
-          statusDiv.innerText = "Mock 模式：模擬上傳...";
-          const mockResp = await fetch(`${CONFIG.API_BASE}/mock/${encodeURIComponent(s3_key)}`, {
-            method: 'POST'
-          });
-          if (!mockResp.ok) {
-            throw new Error(`Mock 上傳失敗 (${mockResp.status})`);
-          }
-          const mockTask = await mockResp.json();
-          currentTaskId = mockTask.task_id;
-        } else {
-          // 2. 直傳 S3 (MinIO)
-          statusDiv.innerText = "音訊直傳 S3 中 (Bypassing Server)...";
-          const s3Resp = await fetch(upload_url, {
-            method: 'PUT',
-            body: file,
-            headers: { 'Content-Type': file.type }
-          });
-
-          if (!s3Resp.ok) {
-            throw new Error(`S3 上傳失敗 (${s3Resp.status}): ${s3Resp.statusText}`);
-          }
-
-          // 3. 建立後端任務
-          statusDiv.innerText = "正在建立後端任務...";
-          const taskResp = await fetch(`${CONFIG.API_BASE}/tasks/confirm`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ s3_key: s3_key })
-          });
-
-          if (!taskResp.ok) {
-            throw new Error(`建立任務失敗 (${taskResp.status}): ${taskResp.statusText}`);
-          }
-
-          const task = await taskResp.json();
-          currentTaskId = task.id;
+        if (!s3Resp.ok) {
+          throw new Error(`S3 上傳失敗 (${s3Resp.status}): ${s3Resp.statusText}`);
         }
+
+        // 3. 建立後端任務
+        statusDiv.innerText = "正在建立後端任務...";
+        const taskResp = await fetch(`${CONFIG.API_BASE}/tasks/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ s3_key: s3_key })
+        });
+
+        if (!taskResp.ok) {
+          throw new Error(`建立任務失敗 (${taskResp.status}): ${taskResp.statusText}`);
+        }
+
+        const task = await taskResp.json();
+        currentTaskId = task.task_id;
+        // }
         document.getElementById('displayTaskId').innerText = currentTaskId;
         document.getElementById('displayStatus').innerText = "Processing";
         statusDiv.innerText = "任務已啟動！等待 Worker 處理...";
@@ -189,8 +176,8 @@
           const resp = await fetch(`${CONFIG.API_BASE}/tasks/${taskId}`);
           const task = await resp.json();
 
-          if (task.transcript) {
-            document.getElementById('transcriptBox').innerText = task.transcript;
+          if (task.Transcript) {
+            document.getElementById('transcriptBox').innerText = task.Transcript;
           }
 
           if (task.status === "COMPLETED") {

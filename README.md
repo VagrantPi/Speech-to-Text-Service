@@ -77,10 +77,13 @@ AWS_REGION=us-east-1
 AWS_S3_BUCKET=speech-to-text-service
 AWS_ACCESS_KEY=minioadmin
 AWS_SECRET_KEY=minioadmin
-AWS_ENDPOINT=http://localhost:9001
-AWS_PUBLIC_ENDPOINT=http://localhost:9001
+AWS_ENDPOINT=http://localhost:9000
+AWS_PUBLIC_ENDPOINT=http://localhost:9000
 EXPIRATION_IN_MINUTES=15
-DEBUG=false
+WHISPER_API_URL=http://localhost:9000/asr?task=transcribe&output=json
+OLLAMA_API_URL=http://localhost:11434/api/chat
+OLLAMA_MODEL=qwen2.5:1.5b
+ENV=local
 API_PORT=8080
 OTEL_SERVICE_NAME=api-server
 OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
@@ -335,14 +338,14 @@ data: {"token": "[DONE]"}
 
 ---
 
-## 除錯模式 (DEBUG)
+## 除錯模式 (ENV)
 
-當 `DEBUG=true` 時，系統會略過實際的 MinIO 與 STT 流程，方便開發與測試：
+當 `ENV=mock` 時，系統會略過實際的 MinIO 與 STT 流程，方便開發與測試：
 
 ### 環境設定
 
 ```bash
-DEBUG=true
+ENV=mock
 ```
 
 ### 運作方式
@@ -352,7 +355,7 @@ DEBUG=true
 3. **Mock 上傳 endpoint**: 模擬上傳成功並直接建立任務
 4. **STT Worker**: 跳過 S3 下載，直接使用 `/tmp/mock-audio.wav`
 
-### API 端點（DEBUG 模式）
+### API 端點（ENV=mock 模式）
 
 **`POST /api/mock/upload/:s3key`**
 
@@ -457,8 +460,11 @@ cd apps/api-server && wire ./internal/di/
 | `AWS_ENDPOINT` | S3 Endpoint（MinIO） | `http://localhost:9001` |
 | `AWS_PUBLIC_ENDPOINT` | S3 公開端點（供 Pre-signed URL 使用） | `http://localhost:9001` |
 | `EXPIRATION_IN_MINUTES` | Pre-signed URL 效期（分鐘） | `15` |
+| `WHISPER_API_URL` | Whisper STT API 端點（本地模式） | `http://localhost:9010/asr?task=transcribe&output=json` |
+| `OLLAMA_API_URL` | Ollama LLM API 端點（本地模式） | `http://localhost:11434/api/chat` |
+| `OLLAMA_MODEL` | Ollama 模型名稱（本地模式） | `qwen2.5:1.5b` |
 | `OPENAI_API_KEY` | OpenAI API 金鑰 | **必填** |
-| `DEBUG` | 除錯模式（略過 MinIO 上傳與 STT 下載） | `false` |
+| `ENV` | 環境模式（`mock`=除錯模式，`local`=本地開發，`production`=正式環境） | `local` |
 | `API_PORT` | API Server 監聽埠號 | `8080` |
 | `OTEL_SERVICE_NAME` | OpenTelemetry 服務名稱 | `api-server` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP 收集器位址 | `http://localhost:4317` |

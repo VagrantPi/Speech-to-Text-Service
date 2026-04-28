@@ -32,6 +32,8 @@ func (w *STTWorker) Start(ctx context.Context) error {
 }
 
 func (w *STTWorker) handleMessage(ctx context.Context, payload []byte) error {
+	log.Printf("[STT Worker] Received message: %s", string(payload))
+
 	var task taskPayload
 	if err := json.Unmarshal(payload, &task); err != nil {
 		log.Printf("Failed to parse task payload: %v", err)

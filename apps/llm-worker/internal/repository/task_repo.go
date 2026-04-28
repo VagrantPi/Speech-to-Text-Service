@@ -31,21 +31,17 @@ func (r *taskRepoImpl) GetTranscript(ctx context.Context, taskID uint) (string, 
 }
 
 func (r *taskRepoImpl) UpdateSummary(ctx context.Context, taskID uint, summary string) error {
-	_, err := db.ExecuteWithOutbox(
-		r.db,
-		1,
-		"task.completed",
-		map[string]interface{}{"task_id": taskID},
-		func(tx *gorm.DB) (uint, error) {
-			err := tx.WithContext(ctx).Model(&models.Task{}).Where("id = ?", taskID).Updates(map[string]interface{}{
-				"summary": summary,
-				"status":  "COMPLETED",
-			}).Error
-			if err != nil {
-				return 0, err
-			}
-			return taskID, nil
-		},
-	)
-	return err
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&models.Task{}).Where("id = ? AND status = ?", taskID, "PROCESSING").Updates(map[string]interface{}{
+			"summary": summary,
+			"status":  "COMPLETED",
+		})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return nil
+		}
+		return nil
+	})
 }

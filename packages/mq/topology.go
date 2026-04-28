@@ -39,8 +39,21 @@ func SetupTopology(url string) error {
 		"direct",
 		true, false, false, false, nil,
 	)
+	if err != nil {
+		return err
+	}
 
-	// 2. 宣告各個業務對應的「死信佇列 (DLQ)」
+	// 2. 宣告主要業務 Exchange (direct 類型)
+	err = ch.ExchangeDeclare(
+		"task_exchange",
+		"direct",
+		true, false, false, false, nil,
+	)
+	if err != nil {
+		return err
+	}
+
+	// 3. 宣告各個業務對應的「死信佇列 (DLQ)」
 	// 這裡我們幫 stt 和 llm 分別建立對應的死信存放處
 	businessQueues := []string{"stt-queue", "llm-queue"}
 
@@ -76,6 +89,13 @@ func SetupTopology(url string) error {
 		if err != nil {
 			return err
 		}
+
+		// D. 將業務佇列綁定到 Exchange，Routing Key 用佇列名
+		err = ch.QueueBind(name, name, "task_exchange", false, nil)
+		if err != nil {
+			return err
+		}
+
 		log.Printf("✅ 已同步主佇列與死信配置: %s <-> %s", name, dlqName)
 	}
 

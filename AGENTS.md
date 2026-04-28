@@ -6,55 +6,62 @@
 # Start local infrastructure
 docker-compose up -d
 
-# Run api-server
-cd apps/api-server && go run cmd/main.go
+# Build (per-module due to go.work)
+go build ./apps/api-server/... ./apps/stt-worker/... ./apps/outbox-relay/...
 
-# Run tests
-go test ./...
+# Run apps
+cd apps/api-server && go run cmd/main.go
+cd apps/outbox-relay && go run cmd/main.go
+
+# Test
+cd apps/api-server && go test ./...
+cd apps/outbox-relay && go test ./...
 ```
 
 ## Architecture
 
 - **Monorepo**: Go workspace (`go.work` with Go 1.26.2)
-- **Apps**: `api-server`, `stt-worker`, `llm-worker`, `outbox-relay`, `db-migration`
-- **Packages**: `config`, `db`, `mq`, `storage`, `stt`
+- **Apps**: `api-server`, `stt-worker`, `llm-worker`, `outbox-relay`, `infra-migration`
+- **Packages**: `config`, `db`, `mq`, `redis`, `storage`, `stt`, `llm`, `telemetry`
 
 ## Dependency Injection
 
 Uses **Google Wire**. After modifying any `wire.go`:
 ```bash
 ./scripts/sync-di.sh
-# Or manually: cd apps/<app> && wire
 ```
-Regenerates `wire_gen.go` files.
+Regenerates `wire_gen.go` files for all apps.
 
 ## Running Apps
 
-Entry points are in `apps/<app>/cmd/main.go`:
+Entry points in `apps/<app>/cmd/main.go`:
 - `api-server`: `cd apps/api-server && go run cmd/main.go` (port 8080)
-- Workers: `cd apps/<worker> && go run cmd/main.go`
+- `stt-worker`: `cd apps/stt-worker && go run cmd/main.go`
+- `llm-worker`: `cd apps/llm-worker && go run cmd/main.go`
+- `outbox-relay`: `cd apps/outbox-relay && go run cmd/main.go`
 
-## Tests
+## Environment Configuration
 
-Run tests from workspace root or per-module:
-```bash
-go test ./apps/api-server/...
-go test ./apps/outbox-relay/...
-```
+- Config via `.env` in project root or each app directory
+- ENV variable has three modes (defined in `packages/config/env.go`):
+  - `EnvMock = "mock"` - 略過 MinIO/STT，使用 mock 資料
+  - `EnvLocal = "local"` - 本地開發（預設）
+  - `EnvProduction = "production"` - 正式環境
 
-## Environment
-
-- Config via `.env` (values: DB, Redis, RabbitMQ, MinIO/S3)
-- Infrastructure: Postgres (:5432), Redis (:6379), RabbitMQ (:5672), MinIO (:9000/:9001)
-- MinIO console: http://localhost:9001 (minioadmin/minioadmin)
+Infrastructure: Postgres (:5432), Redis (:6379), RabbitMQ (:5672), MinIO (:9000/:9001)
 
 ## Key Conventions
 
-- Interfaces defined in `repository/` package, implementations in packages
+- Interfaces in `repository/` package, implementations in packages
 - Use Wire skill (`go-wire-arch`) when adding repositories/usecases/handlers
 - Use TDD skill (`go-tdd`) for test-driven development
+- GORM clause import: use `"gorm.io/gorm/clause"` (NOT `"gorm.io/clause"`)
+
+## Outbox Relay Concurrency
+
+`outbox-relay` uses `SELECT ... FOR UPDATE SKIP LOCKED` for safe multi-instance polling. Key method: `FetchAndProcess` — wraps fetch + publish + mark-as-processed in a single DB transaction. On publish failure, transaction rolls back and rows are released for other instances to pick up. Do NOT use two-phase fetch-then-update in outbox-relay — it causes duplicate messages.
 
 ## Skills
 
-- `go-tdd`: TDD workflow for unit tests
+- `go-tdd`: TDD workflow for Go unit tests
 - `go-wire-arch`: Wire DI injection for new components

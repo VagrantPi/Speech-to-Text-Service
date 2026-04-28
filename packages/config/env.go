@@ -11,6 +11,12 @@ import (
 	"speech.local/packages/telemetry"
 )
 
+const (
+	EnvMock       = "mock"
+	EnvLocal      = "local"
+	EnvProduction = "production"
+)
+
 func LoadConfig(configStruct interface{}) error {
 	viper.AddConfigPath(".")
 	viper.AddConfigPath("../..")
@@ -18,6 +24,8 @@ func LoadConfig(configStruct interface{}) error {
 	viper.SetConfigType("env")
 
 	viper.AutomaticEnv()
+
+	viper.SetDefault("ENV", EnvLocal)
 
 	addEnvToViper("DB_HOST", "DB_HOST")
 	addEnvToViper("DB_PORT", "DB_PORT")
@@ -36,7 +44,7 @@ func LoadConfig(configStruct interface{}) error {
 	addEnvToViper("AWS_PUBLIC_ENDPOINT", "AWS_PUBLIC_ENDPOINT")
 	addEnvToViper("EXPIRATION_IN_MINUTES", "EXPIRATION_IN_MINUTES")
 	addEnvToViper("OPENAI_API_KEY", "OPENAI_API_KEY")
-	addEnvToViper("DEBUG", "DEBUG")
+	addEnvToViper("ENV", "ENV")
 	addEnvToViper("API_PORT", "API_PORT")
 	addEnvToViper("OTEL_SERVICE_NAME", "OTEL_SERVICE_NAME")
 	addEnvToViper("OTEL_EXPORTER_OTLP_ENDPOINT", "OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -74,7 +82,7 @@ type AppConfig struct {
 	ExpirationInMinutes int    `mapstructure:"EXPIRATION_IN_MINUTES"`
 
 	OpenAIAPIKey string `mapstructure:"OPENAI_API_KEY"`
-	Debug        bool   `mapstructure:"DEBUG"`
+	Env          string `mapstructure:"ENV"`
 
 	S3Config        storage.S3Config `mapstructure:",squash"`
 	DBConfig        db.Config        `mapstructure:",squash"`
